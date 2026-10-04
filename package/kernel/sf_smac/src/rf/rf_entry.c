@@ -1253,8 +1253,11 @@ int sf_wifi_rf_probe(struct platform_device *pdev)
         dev_err(&pdev->dev, "failed to enable all clocks: %d\n", ret);
         goto error_release_resources;
     }
-    dev_warn(&pdev->dev, "%s: %d\n", __FUNCTION__, __LINE__);
+    /* vendor release_reset(0x8800): clear isolation, full BOE, then 0x8c80 */
+    writel(0, (void *)(0xB9E00000 + 0x8814));
+    writel(0xf, (void *)(0xB9E00000 + 0x880c));
     reset_control_deassert(priv->rstc);
+    writel(0, (void *)(0xB9E00000 + 0x8c80));
     if((ret = sf_wifi_rf_irqs_register(pdev, priv)))
     {
         printk("sf_wifi_rf_register_irqs failed, ret = %d!\n", ret);

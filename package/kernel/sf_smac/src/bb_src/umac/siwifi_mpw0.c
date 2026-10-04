@@ -614,11 +614,36 @@ ERROR:
     return -1;
 }
 #endif
+/*
+ * Parts of the sysm module release sequence (taken from the vendor 4.14
+ * release_reset()) that the upstream periph clk/reset drivers don't cover:
+ * the per-module isolation register at +0x14, the full bus output enable at
+ * +0xc and the second reset/clock pair of the shared WLAN RAM at 0xc1c/0xc20.
+ */
+#define SYSM_WLAN24_BASE (void *)(0xB9E00000 + 0x8000)
+#define SYSM_WLAN5_BASE (void *)(0xB9E00000 + 0xC400)
+#define SYSM_IRAM_BASE (void *)(0xB9E00000 + 0x0C00)
+static void sf_wifi_sysm_prepare(struct mpw0_plat_data *priv)
+{
+    void *base = (priv->band & LB_MODULE) ? SYSM_WLAN24_BASE : SYSM_WLAN5_BASE;
+    writel(0, base + 0x14);
+    writel(0xff, SYSM_IRAM_BASE + 0x04);
+    writel(0xff, SYSM_IRAM_BASE + 0x20);
+    writel(0xf, SYSM_IRAM_BASE + 0x0c);
+    udelay(1);
+    writel(0, SYSM_IRAM_BASE + 0x1c);
+}
+static void sf_wifi_sysm_boe_enable(struct mpw0_plat_data *priv)
+{
+    void *base = (priv->band & LB_MODULE) ? SYSM_WLAN24_BASE : SYSM_WLAN5_BASE;
+    writel(0xf, base + 0x0c);
+}
 static void sf_wifi_lmac_share_ram_take(struct mpw0_plat_data *priv)
 {
     uint8_t tmp = 0;
     SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
     printk("Now take band %s\n", priv->band == 1 ? "2.4G" : "5G");
+    sf_wifi_sysm_prepare(priv);
     reset_control_deassert(priv->wlan_rstc);
     if (priv->band & LB_MODULE){
         reset_control_deassert(priv->iram_rstc);
@@ -903,6 +928,7 @@ static int siwifi_sysm_enable(struct siwifi_hw *siwifi_hw, struct mpw0_plat_data
             printk("failed to enable all clocks: %d\n", ret);
             return ret;
         }
+        sf_wifi_sysm_boe_enable(priv);
     }
 #ifdef CONFIG_SF16A18_LMAC_USE_M_SFDSP
     sf_wifi_lmac_platform_reset(siwifi_hw, priv, init, 1);
