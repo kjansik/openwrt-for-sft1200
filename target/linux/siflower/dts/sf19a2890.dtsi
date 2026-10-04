@@ -114,6 +114,8 @@
 			reset-names = "stmmaceth";
 			pinctrl-names = "default";
 			pinctrl-0 = <&rgmii_pins>, <&mdio_pins>;
+			tx-fifo-depth = <2048>;
+			rx-fifo-depth = <2048>;
 			status = "disabled";
 
 			mdio: mdio {
@@ -132,6 +134,40 @@
 			resets = <&rfrst 0>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&wlan_pins>;
+			status = "disabled";
+		};
+
+		wlan_lb: wifi@11000000 {
+			compatible = "siflower,sf19a2890-lb";
+			reg = <0x11000000 0x400000>;
+			interrupts = <GIC_SHARED 90 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SHARED 89 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&wlan24clk 0>, <&wlan24clk 1>, <&wlan24clk 2>,
+				 <&clk CLK_MUXDIV_M6250_0>,
+				 <&wlan5clk 0>, <&wlan5clk 1>, <&wlan5clk 2>,
+				 <&clk CLK_MUXDIV_BUS3>;
+			assigned-clocks = <&clk CLK_MUXDIV_WLAN24_PLF>;
+			assigned-clock-rates = <375000000>;
+			resets = <&wlan24rst 0>, <&iramrst 0>;
+			reset-names = "wlan_reset", "iram_reset";
+			smp-affinity = <2>;
+			status = "disabled";
+		};
+
+		wlan_hb: wifi@17800000 {
+			compatible = "siflower,sf19a2890-hb";
+			reg = <0x17800000 0x400000>;
+			interrupts = <GIC_SHARED 186 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SHARED 185 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&wlan5clk 0>, <&wlan5clk 1>, <&wlan5clk 2>,
+				 <&clk CLK_MUXDIV_M6250_1>,
+				 <&wlan24clk 0>, <&wlan24clk 1>, <&wlan24clk 2>,
+				 <&clk CLK_MUXDIV_BUS2>;
+			assigned-clocks = <&clk CLK_MUXDIV_WLAN5_PLF>;
+			assigned-clock-rates = <375000000>;
+			resets = <&wlan5rst 0>;
+			reset-names = "wlan_reset";
+			smp-affinity = <3>;
 			status = "disabled";
 		};
 
@@ -256,6 +292,14 @@
 				offset = <0x30>;
 				value = <0x1>;
 			};
+		};
+
+		/* WLAN shared instruction/data RAM, used by both LMAC cores */
+		iramrst: reset-controller@19e00c00 {
+			compatible = "siflower,sf19a2890-periph-reset";
+			reg = <0x19e00c00 0x4>;
+			#reset-cells = <1>;
+			siflower,reset-masks = <0xff>;
 		};
 
 		gmacrst: reset-controller@19e04400 {
