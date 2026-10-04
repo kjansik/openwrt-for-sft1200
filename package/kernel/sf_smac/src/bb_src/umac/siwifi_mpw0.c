@@ -1433,7 +1433,7 @@ out_80211_init:
     siwifi_platform_deinit(siwifi_plat);
     return ret;
 }
-static int siwifi_hp_remove(struct platform_device *pdev)
+static void siwifi_hp_remove(struct platform_device *pdev)
 {
     struct siwifi_hw *siwifi_hw;
     struct siwifi_plat *siwifi_plat;
@@ -1448,7 +1448,6 @@ static int siwifi_hp_remove(struct platform_device *pdev)
     siwifi_cfg80211_deinit(siwifi_hw);
     siwifi_platform_deinit(siwifi_plat);
     platform_set_drvdata(pdev, NULL);
-    return 0;
 }
 static const char sf_wifi_module_name[16] = {
     "fmac"

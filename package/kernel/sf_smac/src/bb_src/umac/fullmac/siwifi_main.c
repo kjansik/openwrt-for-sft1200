@@ -2130,6 +2130,7 @@ static int siwifi_cfg80211_stop_ap(struct wiphy *wiphy, struct net_device *dev, 
     return 0;
 }
 static int siwifi_cfg80211_set_monitor_channel(struct wiphy *wiphy,
+                                             struct net_device *dev,
                                              struct cfg80211_chan_def *chandef)
 {
     struct siwifi_hw *siwifi_hw = wiphy_priv(wiphy);
@@ -2200,11 +2201,13 @@ static int siwifi_cfg80211_probe_client(struct wiphy *wiphy, struct net_device *
     }
     return 0;
 }
-static int siwifi_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
+static int siwifi_cfg80211_set_wiphy_params(struct wiphy *wiphy, int radio_idx,
+                                            u32 changed)
 {
     return 0;
 }
 static int siwifi_cfg80211_set_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
+                                      int radio_idx,
                                       enum nl80211_tx_power_setting type, int mbm)
 {
     struct siwifi_hw *siwifi_hw = wiphy_priv(wiphy);
@@ -2238,9 +2241,10 @@ static int siwifi_cfg80211_set_tx_power(struct wiphy *wiphy, struct wireless_dev
 int siwifi_debug_set_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
                 enum nl80211_tx_power_setting type, int mbm)
 {
-    return siwifi_cfg80211_set_tx_power(wiphy,wdev,type,mbm);
+    return siwifi_cfg80211_set_tx_power(wiphy,wdev,-1,type,mbm);
 }
 static int siwifi_cfg80211_get_tx_power(struct wiphy *wiphy, struct wireless_dev *wdev,
+                                    int radio_idx, unsigned int link_id,
                                     int *dbm)
 {
  struct siwifi_hw *siwifi_hw = wiphy_priv(wiphy);
@@ -2384,7 +2388,7 @@ static int siwifi_cfg80211_get_channel(struct wiphy *wiphy,
     }
     if (siwifi_vif->vif_index == siwifi_hw->monitor_vif)
     {
-        siwifi_cfg80211_set_monitor_channel(wiphy, NULL);
+        siwifi_cfg80211_set_monitor_channel(wiphy, NULL, NULL);
     }
     if(!siwifi_chanctx_valid(siwifi_hw, siwifi_vif->ch_index)){
         spin_unlock_bh(&siwifi_hw->cb_lock);
@@ -2466,7 +2470,7 @@ static
 int siwifi_cfg80211_start_radar_detection(struct wiphy *wiphy,
                                         struct net_device *dev,
                                         struct cfg80211_chan_def *chandef,
-                                        u32 cac_time_ms)
+                                        u32 cac_time_ms, int link_id)
 {
     struct siwifi_hw *siwifi_hw = wiphy_priv(wiphy);
     struct siwifi_vif *siwifi_vif = netdev_priv(dev);

@@ -1191,7 +1191,7 @@ u8 siwifi_rxdataind(void *pthis, void *hostid)
         hdr = (struct ieee80211_hdr *)(skb->data + msdu_offset);
         siwifi_vif = siwifi_rx_get_vif(siwifi_hw, hw_rxhdr->flags_vif_idx);
         if (siwifi_vif) {
-            cfg80211_rx_spurious_frame(siwifi_vif->ndev, hdr->addr2, GFP_ATOMIC);
+            cfg80211_rx_spurious_frame(siwifi_vif->ndev, hdr->addr2, -1, GFP_ATOMIC);
         }
         siwifi_ipc_rxbuf_elem_repush(siwifi_hw, skb);
         goto end;
@@ -1278,7 +1278,7 @@ u8 siwifi_rxdataind(void *pthis, void *hostid)
                 }
                 if (hw_rxhdr->flags_is_4addr && !siwifi_vif->use_4addr) {
                     cfg80211_rx_unexpected_4addr_frame(siwifi_vif->ndev,
-                                                       sta->mac_addr, GFP_ATOMIC);
+                                                       sta->mac_addr, -1, GFP_ATOMIC);
                 }
             } else {
                 dev_err(siwifi_hw->dev, "Frame received but no active sta (%d)",

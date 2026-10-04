@@ -1347,7 +1347,7 @@ error_release_resources:
     sf_wifi_rf_os_resources_free(pdev, priv);
     return ret;
 }
-int sf_wifi_rf_remove(struct platform_device *pdev)
+void sf_wifi_rf_remove(struct platform_device *pdev)
 {
     struct rf_pl_context *priv;
     printk("%s\n", __func__);
@@ -1363,7 +1363,6 @@ int sf_wifi_rf_remove(struct platform_device *pdev)
     reset_control_assert(priv->rstc);
     clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
     sf_wifi_rf_os_resources_free(pdev, priv);
-    return 0;
 }
 static const struct of_device_id sf_wifi_rf_of_match[] = {
     {

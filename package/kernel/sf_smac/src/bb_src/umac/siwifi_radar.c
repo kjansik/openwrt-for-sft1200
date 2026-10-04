@@ -926,7 +926,7 @@ static void siwifi_radar_cac_work(struct work_struct *ws)
     }
     ctxt = &siwifi_hw->chanctx_table[radar->cac_vif->ch_index];
     cfg80211_cac_event(radar->cac_vif->ndev, &ctxt->chan_def,
-                       NL80211_RADAR_CAC_FINISHED, GFP_KERNEL);
+                       NL80211_RADAR_CAC_FINISHED, GFP_KERNEL, 0);
  spin_unlock_bh(&siwifi_hw->cb_lock);
     siwifi_send_apm_stop_cac_req(siwifi_hw, radar->cac_vif);
  spin_lock_bh(&siwifi_hw->cb_lock);
