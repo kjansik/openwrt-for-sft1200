@@ -1,7 +1,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=sf_smac
-PKG_RELEASE=1
+PKG_RELEASE:=1
+PKG_LICENSE:=GPL-2.0-only
 
 include $(INCLUDE_DIR)/kernel.mk
 include $(INCLUDE_DIR)/package.mk
@@ -9,11 +10,12 @@ include $(INCLUDE_DIR)/package.mk
 define KernelPackage/sf_smac
   SUBMENU:=Wireless Drivers
   TITLE:=SIFLOWER sf19a28 wireless driver
-  DEPENDS:=+kmod-cfg80211 +@DRIVER_11N_SUPPORT +@DRIVER_11AC_SUPPORT
+  DEPENDS:=@TARGET_siflower_sf19a2890 +kmod-cfg80211 +@DRIVER_11N_SUPPORT +@DRIVER_11AC_SUPPORT
   FILES:= \
 	$(PKG_BUILD_DIR)/rf/sf16a18_rf.ko \
 	$(PKG_BUILD_DIR)/startcore/startcore.ko \
 	$(PKG_BUILD_DIR)/fmac/sf16a18_fmac.ko
+  AUTOLOAD:=$(call AutoProbe,startcore sf16a18_rf sf16a18_fmac)
 endef
 
 define KernelPackage/sf_smac/config
@@ -33,7 +35,7 @@ define KernelPackage/sf_smac/config
 
 		config PACKAGE_SFUMAC_WIFI_TEST_SCRIPTS
 			bool "enable test shell scripts"
-			default "y"
+			default "n"
 
 		config SF16A18_COOLING_TEMP
 			bool "enable openwrt themal control"
@@ -188,8 +190,7 @@ SFWIFI_COMPILE_TIME=$(shell date +%s)
 NOSTDINC_FLAGS += -DCONFIG_COMPILE_TIME=$(SFWIFI_COMPILE_TIME)
 
 NOSTDINC_FLAGS += \
-	-I$(PKG_BUILD_DIR)  \
-    -Werror
+	-I$(PKG_BUILD_DIR)
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
@@ -228,6 +229,9 @@ else
 	cp $(PKG_BUILD_DIR)/config/$(SF_ARCH)/rf_default_reg.bin $(1)/lib/firmware
 ifdef CONFIG_TARGET_siflower_sf19a28_fullmask_SF19A28-AC10
 	cp $(PKG_BUILD_DIR)/config/$(SF_ARCH)/sf_rf_expa_config_ac10.ini $(1)/lib/firmware/sf_rf_expa_config.ini
+else ifdef CONFIG_TARGET_siflower_sf19a2890_DEVICE_glinet_gl-sft1200
+	# GL-SFT1200 stock firmware ships the "single" PA/LNA switch table
+	cp $(PKG_BUILD_DIR)/config/$(SF_ARCH)/sf_rf_expa_config_single.ini $(1)/lib/firmware/sf_rf_expa_config.ini
 else
 	cp $(PKG_BUILD_DIR)/config/$(SF_ARCH)/sf_rf_expa_config.ini $(1)/lib/firmware/sf_rf_expa_config.ini
 endif
@@ -272,12 +276,6 @@ else
 	cp $(PKG_BUILD_DIR)/config/$(SF_ARCH)/sf1688_hb_fmac.bin $(1)/lib/firmware/
 endif
 
-
-	$(INSTALL_DIR) $(1)/lib/preinit
-	cp $(PKG_BUILD_DIR)/config/99_rf_misc $(1)/lib/preinit/
-
-	echo 'boot_hook_add preinit_main insmod_cfg80211' >> $(1)/lib/preinit/99_rf_misc
-	echo 'boot_hook_add preinit_main insmod_fmac' >> $(1)/lib/preinit/99_rf_misc
 
 ifndef CONFIG_FLASH_OPTIMIZE
 	$(INSTALL_DIR) $(1)/sbin
