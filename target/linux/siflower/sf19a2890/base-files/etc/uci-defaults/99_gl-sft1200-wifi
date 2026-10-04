@@ -1,0 +1,17 @@
+. /lib/functions.sh
+
+case "$(board_name)" in
+glinet,gl-sft1200)
+	/sbin/wifi config
+	for radio in radio0 radio1; do
+		uci -q get wireless.$radio >/dev/null || continue
+		uci set wireless.$radio.disabled='0'
+		uci set wireless.default_$radio.disabled='0'
+		uci set wireless.default_$radio.ssid='OpenWrt'
+		uci set wireless.default_$radio.encryption='none'
+	done
+	uci commit wireless
+	;;
+esac
+
+exit 0
