@@ -67,6 +67,20 @@
 };
 
 &wlan_rf {
+	/* XO calibration ("XO"/"V2".."V4" tagged) at factory + 0x800 */
+	mtd-rf-cali-config = <&factory 0x800>;
+	status = "okay";
+};
+
+&wlan_lb {
+	nvmem-cells = <&macaddr_factory_0>;
+	nvmem-cell-names = "mac-address";
+	status = "okay";
+};
+
+&wlan_hb {
+	nvmem-cells = <&macaddr_factory_0>;
+	nvmem-cell-names = "mac-address";
 	status = "okay";
 };
 
