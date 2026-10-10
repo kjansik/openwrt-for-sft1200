@@ -207,6 +207,7 @@
 				status = "okay";
 
 				ethernet = <&gmac>;
+				dsa-tag-protocol = "gsw1xx-8021q";
 				fixed-link {
 					speed = <1000>;
 					full-duplex;
