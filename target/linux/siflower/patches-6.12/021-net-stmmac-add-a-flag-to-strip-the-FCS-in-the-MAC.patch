@@ -1,0 +1,93 @@
+From: alex <todadzealexi19@proton.me>
+Subject: [PATCH] net: stmmac: add a flag to strip the FCS in the MAC
+
+stmmac leaves FCS stripping disabled in the MAC and removes the FCS from
+received frames in software. On SoCs with a packet engine between the
+MAC and the DMA, frames forwarded by that engine never go through this
+path and are sent out with the received FCS still appended, so they end
+up four bytes too long.
+
+Add STMMAC_FLAG_RX_CRC_STRIP so glue drivers can make dwmac1000 strip
+the FCS in the MAC, and skip the software stripping in that case.
+
+---
+ drivers/net/ethernet/stmicro/stmmac/dwmac1000.h      |  1 +
+ drivers/net/ethernet/stmicro/stmmac/dwmac1000_core.c |  4 ++++
+ drivers/net/ethernet/stmicro/stmmac/stmmac_main.c    | 10 ++++++----
+ include/linux/stmmac.h                               |  1 +
+ 4 files changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/stmicro/stmmac/dwmac1000.h b/drivers/net/ethernet/stmicro/stmmac/dwmac1000.h
+index 4296ddda8..89c10dd51 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/dwmac1000.h
++++ b/drivers/net/ethernet/stmicro/stmmac/dwmac1000.h
+@@ -122,6 +122,7 @@ enum inter_frame_gap {
+ #define GMAC_CONTROL_DR		0x00000200	/* Disable Retry */
+ #define GMAC_CONTROL_LUD	0x00000100	/* Link up/down */
+ #define GMAC_CONTROL_ACS	0x00000080	/* Auto Pad/FCS Stripping */
++#define GMAC_CONTROL_CST	0x02000000	/* CRC Stripping for Type frames */
+ #define GMAC_CONTROL_DC		0x00000010	/* Deferral Check */
+ #define GMAC_CONTROL_TE		0x00000008	/* Transmitter Enable */
+ #define GMAC_CONTROL_RE		0x00000004	/* Receiver Enable */
+diff --git a/drivers/net/ethernet/stmicro/stmmac/dwmac1000_core.c b/drivers/net/ethernet/stmicro/stmmac/dwmac1000_core.c
+index 83fbd8fa7..6df472477 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/dwmac1000_core.c
++++ b/drivers/net/ethernet/stmicro/stmmac/dwmac1000_core.c
+@@ -23,6 +23,7 @@
+ static void dwmac1000_core_init(struct mac_device_info *hw,
+ 				struct net_device *dev)
+ {
++	struct stmmac_priv *priv = netdev_priv(dev);
+ 	void __iomem *ioaddr = hw->pcsr;
+ 	u32 value = readl(ioaddr + GMAC_CONTROL);
+ 	int mtu = dev->mtu;
+@@ -35,6 +36,9 @@ static void dwmac1000_core_init(struct mac_device_info *hw,
+ 	if (mtu > 2000)
+ 		value |= GMAC_CONTROL_JE;
+ 
++	if (priv->plat->flags & STMMAC_FLAG_RX_CRC_STRIP)
++		value |= GMAC_CONTROL_CST | GMAC_CONTROL_ACS;
++
+ 	if (hw->ps) {
+ 		value |= GMAC_CONTROL_TE;
+ 
+diff --git a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+index 91c07c044..131967eff 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
++++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+@@ -5374,8 +5374,9 @@ static int stmmac_rx_zc(struct stmmac_priv *priv, int limit, u32 queue)
+ 		buf1_len = stmmac_rx_buf1_len(priv, p, status, len);
+ 		len += buf1_len;
+ 
+-		/* ACS is disabled; strip manually. */
+-		if (likely(!(status & rx_not_ls))) {
++		/* Strip FCS manually unless the MAC already did. */
++		if (likely(!(status & rx_not_ls)) &&
++		    !(priv->plat->flags & STMMAC_FLAG_RX_CRC_STRIP)) {
+ 			buf1_len -= ETH_FCS_LEN;
+ 			len -= ETH_FCS_LEN;
+ 		}
+@@ -5561,8 +5562,9 @@ static int stmmac_rx(struct stmmac_priv *priv, int limit, u32 queue)
+ 		buf2_len = stmmac_rx_buf2_len(priv, p, status, len);
+ 		len += buf2_len;
+ 
+-		/* ACS is disabled; strip manually. */
+-		if (likely(!(status & rx_not_ls))) {
++		/* Strip FCS manually unless the MAC already did. */
++		if (likely(!(status & rx_not_ls)) &&
++		    !(priv->plat->flags & STMMAC_FLAG_RX_CRC_STRIP)) {
+ 			if (buf2_len) {
+ 				buf2_len -= ETH_FCS_LEN;
+ 				len -= ETH_FCS_LEN;
+diff --git a/include/linux/stmmac.h b/include/linux/stmmac.h
+index 366dc49c7..ceb057a98 100644
+--- a/include/linux/stmmac.h
++++ b/include/linux/stmmac.h
+@@ -181,6 +181,7 @@ struct dwmac4_addrs {
+ #define STMMAC_FLAG_RX_CLK_RUNS_IN_LPI		BIT(10)
+ #define STMMAC_FLAG_EN_TX_LPI_CLOCKGATING	BIT(11)
+ #define STMMAC_FLAG_HWTSTAMP_CORRECT_LATENCY	BIT(12)
++#define STMMAC_FLAG_RX_CRC_STRIP		BIT(13)
+ 
+ struct plat_stmmacenet_data {
+ 	int bus_id;
