@@ -16,11 +16,13 @@
 
 #include "stmmac.h"
 #include "stmmac_platform.h"
+#include "dwmac-sf19a2890-hnat.h"
 
 struct sf19a2890_gmac_priv {
 	struct device *dev;
 	void __iomem *gmac_cfg;
 	struct clk *gmac_byp_ref_clk;
+	struct sf19a2890_hnat *hnat;
 };
 
 #define REG_MISC		0x0
@@ -110,6 +112,14 @@ static int sfgmac_setup_phy_interface(struct sf19a2890_gmac_priv *priv)
 	return 0;
 }
 
+static int sf19a2890_gmac_setup_tc(struct net_device *ndev, void *bsp_priv,
+				   enum tc_setup_type type, void *type_data)
+{
+	struct sf19a2890_gmac_priv *priv = bsp_priv;
+
+	return sf19a2890_hnat_setup_tc(priv->hnat, ndev, type, type_data);
+}
+
 static int sf19a2890_gmac_probe(struct platform_device *pdev)
 {
 	struct plat_stmmacenet_data *plat_dat;
@@ -159,9 +169,31 @@ static int sf19a2890_gmac_probe(struct platform_device *pdev)
 	 */
 	plat_dat->flags |= STMMAC_FLAG_HAS_INTEGRATED_PCS;
 
+	/* The HNAT engine forwards frames as it gets them from the MAC. */
+	plat_dat->flags |= STMMAC_FLAG_RX_CRC_STRIP;
+
+	if (IS_REACHABLE(CONFIG_DWMAC_SF19A2890_HNAT)) {
+		priv->hnat = sf19a2890_hnat_init(&pdev->dev, stmmac_res.addr);
+		if (IS_ERR(priv->hnat))
+			return PTR_ERR(priv->hnat);
+		plat_dat->setup_tc = sf19a2890_gmac_setup_tc;
+	}
+
 	ret = stmmac_pltfr_probe(pdev, plat_dat, &stmmac_res);
+	if (ret && IS_REACHABLE(CONFIG_DWMAC_SF19A2890_HNAT))
+		sf19a2890_hnat_deinit(priv->hnat);
 
 	return ret;
+}
+
+static void sf19a2890_gmac_remove(struct platform_device *pdev)
+{
+	struct sf19a2890_gmac_priv *priv = get_stmmac_bsp_priv(&pdev->dev);
+
+	stmmac_pltfr_remove(pdev);
+
+	if (IS_REACHABLE(CONFIG_DWMAC_SF19A2890_HNAT))
+		sf19a2890_hnat_deinit(priv->hnat);
 }
 
 static const struct of_device_id dwmac_sf19a2890_match[] = {
@@ -172,7 +204,7 @@ MODULE_DEVICE_TABLE(of, dwmac_sf19a2890_match);
 
 static struct platform_driver sf19a2890_gmac_driver = {
 	.probe  = sf19a2890_gmac_probe,
-	.remove = stmmac_pltfr_remove,
+	.remove = sf19a2890_gmac_remove,
 	.driver = {
 		.name           = "sf19a2890-gmac",
 		.pm		= &stmmac_pltfr_pm_ops,

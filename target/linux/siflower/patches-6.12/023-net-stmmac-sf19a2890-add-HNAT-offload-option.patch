@@ -1,0 +1,43 @@
+From: alex <todadzealexi19@proton.me>
+Subject: [PATCH] net: stmmac: sf19a2890: add HNAT offload option
+
+Add the Kconfig option and Makefile entry for the hardware NAT offload
+support of the SF19A2890 GMAC.
+
+---
+ drivers/net/ethernet/stmicro/stmmac/Kconfig  | 9 +++++++++
+ drivers/net/ethernet/stmicro/stmmac/Makefile | 1 +
+ 2 files changed, 10 insertions(+)
+
+diff --git a/drivers/net/ethernet/stmicro/stmmac/Kconfig b/drivers/net/ethernet/stmicro/stmmac/Kconfig
+index 3f1688b94..d59e4aaee 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/Kconfig
++++ b/drivers/net/ethernet/stmicro/stmmac/Kconfig
+@@ -163,6 +163,15 @@ config DWMAC_SF19A2890
+ 	  This selects the Siflower SF19A2890 SoC glue layer support for
+ 	  the stmmac device driver.
+ 
++config DWMAC_SF19A2890_HNAT
++	tristate "Siflower SF19A2890 GMAC hardware NAT offload"
++	default DWMAC_SF19A2890
++	depends on DWMAC_SF19A2890 && NET_DSA && BRIDGE
++	help
++	  Support for offloading IPv4 NAT flows of netfilter flowtables to
++	  the HNAT engine of the Siflower SF19A2890 GMAC. The switch behind
++	  the GMAC has to use the gsw1xx-8021q DSA tagging protocol.
++
+ config DWMAC_SOCFPGA
+ 	tristate "SOCFPGA dwmac support"
+ 	default ARCH_INTEL_SOCFPGA
+diff --git a/drivers/net/ethernet/stmicro/stmmac/Makefile b/drivers/net/ethernet/stmicro/stmmac/Makefile
+index 4b3ca2461..f134ff48c 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/Makefile
++++ b/drivers/net/ethernet/stmicro/stmmac/Makefile
+@@ -22,6 +22,7 @@ obj-$(CONFIG_DWMAC_MESON)	+= dwmac-meson.o dwmac-meson8b.o
+ obj-$(CONFIG_DWMAC_QCOM_ETHQOS)	+= dwmac-qcom-ethqos.o
+ obj-$(CONFIG_DWMAC_ROCKCHIP)	+= dwmac-rk.o
+ obj-$(CONFIG_DWMAC_SF19A2890)	+= dwmac-sf19a2890.o
++obj-$(CONFIG_DWMAC_SF19A2890_HNAT)	+= dwmac-sf19a2890-hnat.o
+ obj-$(CONFIG_DWMAC_RZN1)	+= dwmac-rzn1.o
+ obj-$(CONFIG_DWMAC_SOCFPGA)	+= dwmac-altr-socfpga.o
+ obj-$(CONFIG_DWMAC_STARFIVE)	+= dwmac-starfive.o
