@@ -4,8 +4,9 @@
  *
  * The HNAT engine sits between the MAC and the DMA engine of the GMAC. It
  * handles IPv4 TCP/UDP NAPT for flows between ports of a switch attached
- * to this GMAC through DSA with the gsw1xx-8021q tagger, and is driven by
- * netfilter flowtable hardware offload.
+ * to this GMAC through DSA with the gsw1xx-8021q tagger, optionally with
+ * PPPoE on the WAN side, and is driven by netfilter flowtable hardware
+ * offload. It has no IPv6 support.
  */
 
 #include <linux/bitfield.h>
@@ -19,6 +20,7 @@
 #include <linux/ip.h>
 #include <linux/jhash.h>
 #include <linux/module.h>
+#include <linux/ppp_defs.h>
 #include <linux/rtnetlink.h>
 #include <linux/seq_file.h>
 #include <linux/slab.h>
@@ -74,6 +76,7 @@ enum {
 	TB_DIP		= 18,
 	TB_DIP_VLD	= 19,
 	TB_DMAC		= 20,
+	TB_PPPOE	= 21,
 	TB_RMAC		= 22,
 	TB_VLAN		= 23,
 	TB_NUM		= 25,
@@ -91,6 +94,7 @@ static const u16 hnat_tb_depth[TB_NUM] = {
 #define HNAT_DIP_NUM		512
 #define HNAT_DMAC_NUM		128
 #define HNAT_RMAC_NUM		8
+#define HNAT_PPPOE_NUM		8
 #define HNAT_VLAN_NUM		127
 #define HNAT_PUB_NUM		16
 #define HNAT_LAN_NUM		8
@@ -116,6 +120,11 @@ struct hnat_rmac {
 struct hnat_dmac {
 	u8 mac[ETH_ALEN];
 	u8 rmac;
+	u16 refs;
+};
+
+struct hnat_pppoe {
+	u16 sid;
 	u16 refs;
 };
 
@@ -151,6 +160,7 @@ struct hnat_napt {
 	u8 wan_vlan;
 	u8 pub;
 	u8 lan;
+	s8 pppoe;
 	u16 lan_dip;
 	u16 wan_dip;
 	struct hnat_hash_pos in;
@@ -192,6 +202,8 @@ struct hnat_flow {
 	u32 lan_net;
 	u8 lan_plen;
 	u8 wan_plen;
+	bool pppoe;
+	u16 pppoe_sid;
 	bool in_hw;
 	u16 napt;
 	unsigned long hw_since;
@@ -206,6 +218,8 @@ struct hnat_rule {
 	u32 lan_net;
 	u8 lan_plen;
 	u8 wan_plen;
+	bool pppoe;
+	u16 pppoe_sid;
 };
 
 struct sf19a2890_hnat {
@@ -221,6 +235,7 @@ struct sf19a2890_hnat {
 	struct hnat_dip dip[HNAT_DIP_NUM];
 	struct hnat_dmac dmac[HNAT_DMAC_NUM];
 	struct hnat_rmac rmac[HNAT_RMAC_NUM];
+	struct hnat_pppoe pppoe[HNAT_PPPOE_NUM];
 	struct hnat_vlan vlan[HNAT_VLAN_NUM];
 	struct hnat_pub pub[HNAT_PUB_NUM];
 	struct hnat_lan lan[HNAT_LAN_NUM];
@@ -731,6 +746,44 @@ static void hnat_pub_put(struct sf19a2890_hnat *h, int i)
 	hnat_tb_clear(h, TB_PUB_NET, i);
 }
 
+static int hnat_pppoe_get(struct sf19a2890_hnat *h, u16 sid)
+{
+	u32 d[5] = {};
+	int i, free = -1;
+
+	for (i = 0; i < HNAT_PPPOE_NUM; i++) {
+		struct hnat_pppoe *e = &h->pppoe[i];
+
+		if (e->refs && e->sid == sid) {
+			e->refs++;
+			return i;
+		}
+		if (!e->refs && free < 0)
+			free = i;
+	}
+	if (free < 0)
+		return -ENOSPC;
+
+	/* header template: PPP protocol IPv4, then ver/type 0x11, code 0, sid */
+	d[0] = PPP_IP;
+	d[1] = 0x11000000 | sid;
+	if (hnat_tb_write(h, TB_PPPOE, free, d))
+		return -EIO;
+
+	h->pppoe[free].sid = sid;
+	h->pppoe[free].refs = 1;
+
+	return free;
+}
+
+static void hnat_pppoe_put(struct sf19a2890_hnat *h, int i)
+{
+	if (--h->pppoe[i].refs)
+		return;
+
+	hnat_tb_clear(h, TB_PPPOE, i);
+}
+
 static void hnat_lan_write(struct sf19a2890_hnat *h, int i, u32 net, u8 plen)
 {
 	int shift = (i % 4) * 8;
@@ -851,15 +904,27 @@ static int hnat_napt_add(struct sf19a2890_hnat *h, const struct hnat_flow *fl)
 		goto err_lan_dip;
 	n->wan_dip = ret;
 
+	n->pppoe = -1;
+	if (fl->pppoe) {
+		ret = hnat_pppoe_get(h, fl->pppoe_sid);
+		if (ret < 0)
+			goto err_wan_dip;
+		n->pppoe = ret;
+	}
+
 	/* the table interface byte swaps these fields in big endian mode */
 	d[0] = (__force u32)t->remote_ip;
 	d[1] = (lan_ip & 0xffff) << 16 | (__force u16)t->remote_port;
 	d[2] = (__force u16)t->lan_port << 16 | lan_ip >> 16;
 	d[3] = t->proto << 27 | n->lan_vlan << 20 |
 	       (__force u16)t->pub_port << 4 | n->pub;
+	if (n->pppoe >= 0) {
+		d[3] |= (n->pppoe & 0x3) << 30 | BIT(29);
+		d[4] = n->pppoe >> 2;
+	}
 	ret = hnat_tb_write(h, TB_NAPT, idx, d);
 	if (ret)
-		goto err_wan_dip;
+		goto err_pppoe;
 
 	hnat_in_key(key, t);
 	ret = hnat_napt_hash_insert(h, TB_IN_HASH, key, idx, &n->in);
@@ -885,6 +950,9 @@ err_in_hash:
 	hnat_napt_hash_remove(h, &n->in);
 err_entry:
 	hnat_tb_clear(h, TB_NAPT, idx);
+err_pppoe:
+	if (n->pppoe >= 0)
+		hnat_pppoe_put(h, n->pppoe);
 err_wan_dip:
 	hnat_dip_put(h, n->wan_dip);
 err_lan_dip:
@@ -908,6 +976,8 @@ static void hnat_napt_del(struct sf19a2890_hnat *h, int idx)
 	hnat_napt_hash_remove(h, &n->out);
 	hnat_napt_hash_remove(h, &n->in);
 	hnat_tb_clear(h, TB_NAPT, idx);
+	if (n->pppoe >= 0)
+		hnat_pppoe_put(h, n->pppoe);
 	hnat_dip_put(h, n->wan_dip);
 	hnat_dip_put(h, n->lan_dip);
 	hnat_lan_put(h, n->lan);
@@ -930,6 +1000,7 @@ static void hnat_hw_init(struct sf19a2890_hnat *h)
 	memset(h->dip, 0, sizeof(h->dip));
 	memset(h->dmac, 0, sizeof(h->dmac));
 	memset(h->rmac, 0, sizeof(h->rmac));
+	memset(h->pppoe, 0, sizeof(h->pppoe));
 	memset(h->vlan, 0, sizeof(h->vlan));
 	memset(h->pub, 0, sizeof(h->pub));
 	memset(h->lan, 0, sizeof(h->lan));
@@ -1093,6 +1164,30 @@ static int hnat_find_ifa(struct net_device *dev, __be32 addr, u32 *net,
 	return -ENOENT;
 }
 
+/*
+ * The public address can sit on a device stacked on the port, like a PPPoE
+ * interface, so look it up by the local address itself.
+ */
+static int hnat_find_local(struct net *net, __be32 addr, u8 *plen)
+{
+	struct net_device *dev = __ip_dev_find(net, addr, false);
+	const struct in_ifaddr *ifa;
+	struct in_device *in_dev;
+
+	in_dev = dev ? __in_dev_get_rcu(dev) : NULL;
+	if (!in_dev)
+		return -ENOENT;
+
+	in_dev_for_each_ifa_rcu(ifa, in_dev) {
+		if (ifa->ifa_local == addr) {
+			*plen = ifa->ifa_prefixlen;
+			return 0;
+		}
+	}
+
+	return -ENOENT;
+}
+
 static void hnat_mangle_eth(const struct flow_action_entry *act, u8 *eth)
 {
 	const u8 *src = (const u8 *)&act->mangle.val;
@@ -1122,7 +1217,6 @@ static int hnat_parse_rule(struct sf19a2890_hnat *h, struct flow_cls_offload *f,
 	struct flow_action_entry *act;
 	__be32 new_saddr = 0, new_daddr = 0;
 	__be16 new_sport = 0, new_dport = 0;
-	u32 net;
 	int i, ret;
 
 	if (!flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_META) ||
@@ -1189,6 +1283,12 @@ static int hnat_parse_rule(struct sf19a2890_hnat *h, struct flow_cls_offload *f,
 		case FLOW_ACTION_REDIRECT:
 			out_dev = act->dev;
 			break;
+		case FLOW_ACTION_PPPOE_PUSH:
+			if (r->pppoe)
+				return -EOPNOTSUPP;
+			r->pppoe = true;
+			r->pppoe_sid = act->pppoe.sid;
+			break;
 		default:
 			return -EOPNOTSUPP;
 		}
@@ -1214,7 +1314,19 @@ static int hnat_parse_rule(struct sf19a2890_hnat *h, struct flow_cls_offload *f,
 		return -EOPNOTSUPP;
 	}
 
-	if (!out_dev)
+	/*
+	 * Only the WAN side can be PPPoE. The flowtable doesn't describe the
+	 * PPPoE header on the inbound rule, it comes from the outbound one.
+	 */
+	if (!out_dev || (r->pppoe && r->dir != DIR_OUT))
+		return -EOPNOTSUPP;
+
+	/*
+	 * The engine adds the PPPoE header without checking the MTU, so full
+	 * size packets would get dropped instead of fragmented. TCP is kept
+	 * small enough by MSS clamping, UDP stays in software.
+	 */
+	if (r->pppoe && r->t.proto != 0)
 		return -EOPNOTSUPP;
 
 	rcu_read_lock();
@@ -1235,8 +1347,7 @@ static int hnat_parse_rule(struct sf19a2890_hnat *h, struct flow_cls_offload *f,
 	if (ret)
 		goto out;
 
-	ret = hnat_find_ifa(r->dir == DIR_OUT ? out_dev : in_dev,
-			    r->t.pub_ip, &net, &r->wan_plen);
+	ret = hnat_find_local(dev_net(h->ndev), r->t.pub_ip, &r->wan_plen);
 out:
 	rcu_read_unlock();
 	return ret;
@@ -1285,6 +1396,8 @@ static int hnat_cls_replace(struct sf19a2890_hnat *h,
 		ether_addr_copy(fl->wan_smac, r.eth + ETH_ALEN);
 		fl->lan_vid = r.in_vid;
 		fl->wan_vid = r.out_vid;
+		fl->pppoe = r.pppoe;
+		fl->pppoe_sid = r.pppoe_sid;
 	} else {
 		ether_addr_copy(fl->lan_mac, r.eth);
 		ether_addr_copy(fl->lan_smac, r.eth + ETH_ALEN);
@@ -1441,12 +1554,18 @@ EXPORT_SYMBOL_GPL(sf19a2890_hnat_setup_tc);
 static int hnat_debugfs_show(struct seq_file *m, void *v)
 {
 	struct sf19a2890_hnat *h = m->private;
+	unsigned int pppoe = 0;
 	u32 cfg;
+	int i;
 
 	mutex_lock(&h->lock);
 
+	for (i = 0; i < HNAT_PPPOE_NUM; i++)
+		pppoe += h->pppoe[i].refs;
+
 	seq_printf(m, "flows:    %u\n", h->nflows);
 	seq_printf(m, "in hw:    %u\n", h->nhw);
+	seq_printf(m, "pppoe:    %u\n", pppoe);
 	seq_printf(m, "added:    %lu\n", h->added);
 	seq_printf(m, "failed:   %lu\n", h->failed);
 	seq_printf(m, "expired:  %lu\n", h->expired);
