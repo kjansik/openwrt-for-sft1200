@@ -1,0 +1,78 @@
+From: alex <todadzealexi19@proton.me>
+Subject: [PATCH] net: stmmac: use the extended rx checksum status
+
+With extended descriptors, RDES0 bit 0 means that the extended status in
+RDES4 is valid. The enhanced descriptor code reads it as a payload
+checksum error, so every IP frame is passed up as CHECKSUM_NONE and the
+checksum is verified again in software.
+
+Take the result from RDES4 when it reports a checked TCP, UDP or ICMP
+payload without errors. On the SF19A2890 this removes csum_partial,
+which used about a third of the CPU handling ethernet receive.
+---
+ drivers/net/ethernet/stmicro/stmmac/stmmac_main.c | 37 ++++++++++++++++++-
+ 1 file changed, 35 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
++++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+@@ -4491,6 +4491,33 @@
+ 		(proto == htons(ETH_P_IP) || proto == htons(ETH_P_IPV6));
+ }
+ 
++/* With extended descriptors RDES0 bit 0 means the extended status in RDES4
++ * is valid, not a payload checksum error, so the enhanced descriptor code
++ * reports csum_none for every IP frame. Take the result from RDES4 instead.
++ */
++static int stmmac_rx_ext_csum(struct stmmac_priv *priv,
++			      struct dma_extended_desc *p, int status)
++{
++	u32 rdes0 = le32_to_cpu(p->basic.des0);
++	u32 rdes4 = le32_to_cpu(p->des4);
++	u32 type = rdes4 & GENMASK(2, 0);
++
++	if (!priv->plat->enh_desc || status != csum_none)
++		return status;
++	if (!(rdes0 & ERDES0_RX_MAC_ADDR) || !(rdes0 & RDES0_FRAME_TYPE) ||
++	    (rdes0 & RDES0_IPC_CSUM_ERROR))
++		return status;
++	if (!(rdes4 & (ERDES4_IPV4_PKT_RCVD | ERDES4_IPV6_PKT_RCVD)) ||
++	    (rdes4 & (ERDES4_IP_HDR_ERR | ERDES4_IP_PAYLOAD_ERR |
++		      ERDES4_IP_CSUM_BYPASSED)))
++		return status;
++	/* only UDP, TCP and ICMP payloads are checked */
++	if (type < 1 || type > 3)
++		return status;
++
++	return good_frame;
++}
++
+ /**
+  *  stmmac_xmit - Tx entry point of the driver
+  *  @skb : the socket buffer
+@@ -5337,9 +5364,12 @@
+ 		if (!buf->xdp)
+ 			break;
+ 
+-		if (priv->extend_desc)
++		if (priv->extend_desc) {
+ 			stmmac_rx_extended_status(priv, &priv->xstats,
+ 						  rx_q->dma_erx + entry);
++			status = stmmac_rx_ext_csum(priv, rx_q->dma_erx + entry,
++						    status);
++		}
+ 		if (unlikely(status == discard_frame)) {
+ 			xsk_buff_free(buf->xdp);
+ 			buf->xdp = NULL;
+@@ -5532,8 +5562,11 @@
+ 
+ 		prefetch(np);
+ 
+-		if (priv->extend_desc)
++		if (priv->extend_desc) {
+ 			stmmac_rx_extended_status(priv, &priv->xstats, rx_q->dma_erx + entry);
++			status = stmmac_rx_ext_csum(priv, rx_q->dma_erx + entry,
++						    status);
++		}
+ 		if (unlikely(status == discard_frame)) {
+ 			page_pool_recycle_direct(rx_q->page_pool, buf->page);
+ 			buf->page = NULL;
