@@ -102,6 +102,8 @@
 		compatible = "spi-nand";
 		reg = <0>;
 		spi-max-frequency = <33000000>;
+		/* DMA, interrupt mode takes an interrupt every few bytes */
+		pl022,com-mode = <2>;
 
 		partitions {
 			compatible = "fixed-partitions";

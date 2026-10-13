@@ -220,6 +220,8 @@
 			compatible = "arm,pl022", "arm,primecell";
 			reg = <0x18202000 0x1000>;
 			cs-gpios = <&gpio 8 GPIO_ACTIVE_LOW>;
+			dmas = <&gdma 4>, <&gdma 5>;
+			dma-names = "tx", "rx";
 			clocks = <&spiclk 1>, <&spiclk 0>;
 			clock-names = "sspclk", "apb_pclk";
 			interrupts = <GIC_SHARED 225 IRQ_TYPE_LEVEL_HIGH>;
