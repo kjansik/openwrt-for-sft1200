@@ -9,9 +9,18 @@
 #include <linux/reset-controller.h>
 #include <linux/spinlock.h>
 
+/*
+ * The PL330 in the GDMA block boots in secure mode unless these tie-offs
+ * are set before it leaves reset. Linux drives it non-secure.
+ */
+#define GDMA_BOOT_MANAGER_NS	0x00
+#define GDMA_BOOT_IRQ_NS(n)	(0x08 + 4 * (n))
+#define GDMA_BOOT_PERIPH_NS(n)	(0x14 + 4 * (n))
+
 struct reset_sf19a28_periph_data {
 	struct reset_controller_dev rcdev;
 	void __iomem *base;
+	void __iomem *gdma_boot;
 	spinlock_t lock;
 	u32 reset_masks[];
 };
@@ -30,6 +39,15 @@ static int reset_sf19a28_periph_update(struct reset_controller_dev *rcdev,
 	u32 reg;
 
 	spin_lock_irqsave(&data->lock, flags);
+	if (!assert && data->gdma_boot) {
+		int i;
+
+		writel(1, data->gdma_boot + GDMA_BOOT_MANAGER_NS);
+		for (i = 0; i < 3; i++) {
+			writel(0xff, data->gdma_boot + GDMA_BOOT_IRQ_NS(i));
+			writel(0xff, data->gdma_boot + GDMA_BOOT_PERIPH_NS(i));
+		}
+	}
 	reg = readl(data->base);
 	if (assert)
 		reg |= data->reset_masks[id];
@@ -70,6 +88,7 @@ const struct reset_control_ops reset_sf19a28_periph_ops = {
 
 static const struct of_device_id reset_sf19a28_periph_dt_ids[] = {
 	{ .compatible = "siflower,sf19a2890-periph-reset", },
+	{ .compatible = "siflower,sf19a2890-gdma-reset", },
 	{ /* sentinel */ },
 };
 
@@ -110,6 +129,12 @@ static int reset_sf19a28_periph_probe(struct platform_device *pdev)
 	base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
+
+	if (of_device_is_compatible(node, "siflower,sf19a2890-gdma-reset")) {
+		data->gdma_boot = devm_platform_ioremap_resource(pdev, 1);
+		if (IS_ERR(data->gdma_boot))
+			return PTR_ERR(data->gdma_boot);
+	}
 
 	spin_lock_init(&data->lock);
 	data->base = base;

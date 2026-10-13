@@ -171,6 +171,25 @@
 			status = "disabled";
 		};
 
+		gdma: dma-controller@11800000 {
+			compatible = "arm,pl330", "arm,primecell";
+			reg = <0x11800000 0x1000>;
+			interrupts = <GIC_SHARED 96 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SHARED 97 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SHARED 98 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SHARED 99 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SHARED 100 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SHARED 101 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SHARED 102 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SHARED 103 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SHARED 104 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&gdmaclk 0>;
+			clock-names = "apb_pclk";
+			resets = <&gdmarst 0>;
+			reset-names = "dma";
+			#dma-cells = <1>;
+		};
+
 		usb: usb@17000000 {
 			compatible = "siflower,sf19a2890-usb";
 			reg = <0x17000000 0x40000>;
@@ -329,6 +348,24 @@
 			reg = <0x19e08004 0xc>;
 			clocks = <&clk CLK_MUXDIV_CPU>, <&clk CLK_MUXDIV_BUS2>, <&clk CLK_MUXDIV_WLAN24_PLF>;
 			clock-output-names = "wlan24_axis", "wlan24_axim", "wlan24_plf";
+			#clock-cells = <1>;
+		};
+
+		gdmarst: reset-controller@19e08400 {
+			compatible = "siflower,sf19a2890-gdma-reset";
+			reg = <0x19e08400 0x4>, <0x19e08440 0x20>;
+			#reset-cells = <1>;
+			siflower,reset-masks = <0xff>;
+		};
+
+		gdmaclk: clock-controller@19e08404 {
+			compatible = "siflower,sf19a2890-periph-clk";
+			reg = <0x19e08404 0xc>;
+			clocks = <&clk CLK_MUXDIV_BUS2>, <&clk CLK_MUXDIV_BUS2>,
+				 <&clk CLK_MUXDIV_BUS2>;
+			clock-output-names = "gdma0", "gdma1", "gdma2";
+			/* the vendor enables all of them, only the first one is ours */
+			siflower,critical-gates = <0x6>;
 			#clock-cells = <1>;
 		};
 
