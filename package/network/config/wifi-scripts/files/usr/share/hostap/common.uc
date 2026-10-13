@@ -68,8 +68,10 @@ function find_reusable_wdev(phyidx)
 		nl80211.const.NL80211_CMD_GET_INTERFACE,
 		nl80211.const.NLM_F_DUMP,
 		{ wiphy: phyidx });
+	// An interface that is up but has no carrier yet, like an AP that is
+	// still starting, is in use. Only take interfaces that are admin down.
 	for (let res in data)
-		if (trim(readfile(`/sys/class/net/${res.ifname}/operstate`)) == "down")
+		if (!(hex(trim(readfile(`/sys/class/net/${res.ifname}/flags`))) & 1))
 			return res.ifname;
 	return null;
 }
