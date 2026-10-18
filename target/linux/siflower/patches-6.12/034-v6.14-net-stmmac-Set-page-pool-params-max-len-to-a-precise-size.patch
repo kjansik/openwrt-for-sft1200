@@ -1,0 +1,50 @@
+From: Furong Xu <0x1207@gmail.com>
+Subject: [PATCH] net: stmmac: Set page_pool_params.max_len to a precise size
+
+commit 2324c78a75c54b4c49d22bb44fcccf5727ba5ef7 upstream.
+
+DMA engine will always write no more than dma_buf_sz bytes of a received
+frame into a page buffer, the remaining spaces are unused or used by CPU
+exclusively.
+Setting page_pool_params.max_len to almost the full size of page(s) helps
+nothing more, but wastes more CPU cycles on cache maintenance.
+
+For a standard MTU of 1500, then dma_buf_sz is assigned to 1536, and this
+patch brings ~16.9% driver performance improvement in a TCP RX
+throughput test with iPerf tool on a single isolated Cortex-A65 CPU
+core, from 2.43 Gbits/sec increased to 2.84 Gbits/sec.
+
+Signed-off-by: Furong Xu <0x1207@gmail.com>
+Reviewed-by: Alexander Lobakin <aleksander.lobakin@intel.com>
+Reviewed-by: Yanteng Si <si.yanteng@linux.dev>
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+---
+ drivers/net/ethernet/stmicro/stmmac/stmmac_main.c | 2 +-
+ drivers/net/ethernet/stmicro/stmmac/stmmac_xdp.h  | 1 -
+ 2 files changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+index 9e543e3..ff426a0 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
++++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+@@ -2047,7 +2047,7 @@ static int __alloc_dma_rx_desc_resources(struct stmmac_priv *priv,
+ 	pp_params.dev = priv->device;
+ 	pp_params.dma_dir = xdp_prog ? DMA_BIDIRECTIONAL : DMA_FROM_DEVICE;
+ 	pp_params.offset = stmmac_rx_offset(priv);
+-	pp_params.max_len = STMMAC_MAX_RX_BUF_SIZE(num_pages);
++	pp_params.max_len = dma_conf->dma_buf_sz;
+ 
+ 	rx_q->page_pool = page_pool_create(&pp_params);
+ 	if (IS_ERR(rx_q->page_pool)) {
+diff --git a/drivers/net/ethernet/stmicro/stmmac/stmmac_xdp.h b/drivers/net/ethernet/stmicro/stmmac/stmmac_xdp.h
+index 896dc98..77ce8cf 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/stmmac_xdp.h
++++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_xdp.h
+@@ -4,7 +4,6 @@
+ #ifndef _STMMAC_XDP_H_
+ #define _STMMAC_XDP_H_
+ 
+-#define STMMAC_MAX_RX_BUF_SIZE(num)	(((num) * PAGE_SIZE) - XDP_PACKET_HEADROOM)
+ #define STMMAC_RX_DMA_ATTR	(DMA_ATTR_SKIP_CPU_SYNC | DMA_ATTR_WEAK_ORDERING)
+ 
+ int stmmac_xdp_setup_pool(struct stmmac_priv *priv, struct xsk_buff_pool *pool,

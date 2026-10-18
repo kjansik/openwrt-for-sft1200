@@ -1,0 +1,41 @@
+From: Furong Xu <0x1207@gmail.com>
+Subject: [PATCH] net: stmmac: Drop redundant skb_mark_for_recycle() for SKB
+ frags
+
+commit ba5f78505fb4e3feb73d8e5249a13b3244dac4d9 upstream.
+
+After commit df542f669307 ("net: stmmac: Switch to zero-copy in
+non-XDP RX path"), SKBs are always marked for recycle, it is redundant
+to mark SKBs more than once when new frags are appended.
+
+Signed-off-by: Furong Xu <0x1207@gmail.com>
+Link: https://patch.msgid.link/20250117062805.192393-1-0x1207@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/stmicro/stmmac/stmmac_main.c | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+index 534af96..20072b1 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
++++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+@@ -5667,9 +5667,6 @@ read_again:
+ 			skb_add_rx_frag(skb, skb_shinfo(skb)->nr_frags,
+ 					buf->page, buf->page_offset, buf1_len,
+ 					priv->dma_conf.dma_buf_sz);
+-
+-			/* Data payload appended into SKB */
+-			skb_mark_for_recycle(skb);
+ 			buf->page = NULL;
+ 		}
+ 
+@@ -5679,9 +5676,6 @@ read_again:
+ 			skb_add_rx_frag(skb, skb_shinfo(skb)->nr_frags,
+ 					buf->sec_page, 0, buf2_len,
+ 					priv->dma_conf.dma_buf_sz);
+-
+-			/* Data payload appended into SKB */
+-			skb_mark_for_recycle(skb);
+ 			buf->sec_page = NULL;
+ 		}
+ 
