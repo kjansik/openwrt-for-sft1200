@@ -11,14 +11,16 @@ verified again in software.
 When extended status is available, take the result from RDES4 instead.
 A TCP, UDP or ICMP payload with no IP header error, no payload error and
 no checksum bypass is a good frame. Everything else keeps the status
-from RDES0. While at it, fix the IP payload type mask, which covered
-bits 6:2 instead of 2:0 and had no users.
+from RDES0. Since RDES4 now decides the checksum status, read it after
+the own bit with dma_rmb(). While at it, fix the IP payload type mask,
+which covered bits 6:2 instead of 2:0 and had no users.
 
 Tested on a Siflower SF19A2890 (GMAC 3.70) with the board as the iperf3
 endpoint. TCP receive goes from 326 to 378 Mbit/s with one stream and
 from 259 to 329 Mbit/s with four, and CPU use while receiving 200 Mbit/s
-drops from 26.6% to 21.5%. Frames with a bad TCP, UDP or ICMP checksum,
-over IPv4 and IPv6 and including fragmented UDP, are still dropped.
+drops from 26.6% to 21.5%. In stmmac_rx(), frames with a bad TCP, UDP or
+ICMP checksum, over IPv4 and IPv6 and including fragmented UDP, are
+still passed up as CHECKSUM_NONE and dropped by the stack.
 
 Fixes: c24602ef8664 ("stmmac: support extend descriptors")
 Signed-off-by: alex todadze <todadzealexi19@proton.me>
@@ -49,7 +51,7 @@ index 49d6a86..4fc5f69 100644
  struct dma_desc {
  	__le32 des0;
 diff --git a/drivers/net/ethernet/stmicro/stmmac/enh_desc.c b/drivers/net/ethernet/stmicro/stmmac/enh_desc.c
-index 937b7a0..0b7566e 100644
+index 937b7a0..45410eb 100644
 --- a/drivers/net/ethernet/stmicro/stmmac/enh_desc.c
 +++ b/drivers/net/ethernet/stmicro/stmmac/enh_desc.c
 @@ -8,6 +8,7 @@
@@ -60,7 +62,7 @@ index 937b7a0..0b7566e 100644
  #include <linux/stmmac.h>
  #include "common.h"
  #include "descs_com.h"
-@@ -114,8 +115,26 @@ static int enh_desc_coe_rdes0(int ipc_err, int type, int payload_err)
+@@ -114,8 +115,25 @@ static int enh_desc_coe_rdes0(int ipc_err, int type, int payload_err)
  	return ret;
  }
  
@@ -70,8 +72,7 @@ index 937b7a0..0b7566e 100644
 +{
 +	u32 type = FIELD_GET(ERDES4_IP_PAYLOAD_TYPE_MASK, rdes4);
 +
-+	if (status != csum_none || !(rdes0 & RDES0_FRAME_TYPE) ||
-+	    (rdes0 & RDES0_IPC_CSUM_ERROR))
++	if (status != csum_none || !(rdes0 & RDES0_FRAME_TYPE))
 +		return status;
 +	if (!(rdes4 & (ERDES4_IPV4_PKT_RCVD | ERDES4_IPV6_PKT_RCVD)) ||
 +	    (rdes4 & (ERDES4_IP_HDR_ERR | ERDES4_IP_PAYLOAD_ERR |
@@ -89,7 +90,7 @@ index 937b7a0..0b7566e 100644
  {
  	unsigned int rdes0 = le32_to_cpu(p->basic.des0);
  	unsigned int rdes4 = le32_to_cpu(p->des4);
-@@ -175,7 +194,11 @@ static void enh_desc_get_ext_status(struct stmmac_extra_stats *x,
+@@ -175,7 +193,11 @@ static void enh_desc_get_ext_status(struct stmmac_extra_stats *x,
  			x->l4_filter_match++;
  		if ((rdes4 & ERDES4_L3_L4_FILT_NO_MATCH_MASK) >> 26)
  			x->l3_l4_filter_no_match++;
@@ -126,29 +127,39 @@ index 4376d61..c0fc126 100644
  	stmmac_do_void_callback(__priv, desc, enable_tx_timestamp, __args)
  #define stmmac_get_tx_timestamp_status(__priv, __args...) \
 diff --git a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
-index 890cd91..d21b1b1 100644
+index b24bb82..7e156ca 100644
 --- a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
 +++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
-@@ -5338,8 +5338,9 @@ read_again:
+@@ -5337,9 +5337,13 @@ static int stmmac_rx_zc(struct stmmac_priv *priv, int limit, u32 queue)
+ 		if (!buf->xdp)
  			break;
  
- 		if (priv->extend_desc)
+-		if (priv->extend_desc)
 -			stmmac_rx_extended_status(priv, &priv->xstats,
 -						  rx_q->dma_erx + entry);
++		if (priv->extend_desc) {
++			/* Read the extended status after the own bit */
++			dma_rmb();
 +			status = stmmac_rx_extended_status(priv, &priv->xstats,
 +							   rx_q->dma_erx + entry,
 +							   status);
++		}
  		if (unlikely(status == discard_frame)) {
  			xsk_buff_free(buf->xdp);
  			buf->xdp = NULL;
-@@ -5533,7 +5534,9 @@ read_again:
+@@ -5532,8 +5536,13 @@ static int stmmac_rx(struct stmmac_priv *priv, int limit, u32 queue)
+ 
  		prefetch(np);
  
- 		if (priv->extend_desc)
+-		if (priv->extend_desc)
 -			stmmac_rx_extended_status(priv, &priv->xstats, rx_q->dma_erx + entry);
++		if (priv->extend_desc) {
++			/* Read the extended status after the own bit */
++			dma_rmb();
 +			status = stmmac_rx_extended_status(priv, &priv->xstats,
 +							   rx_q->dma_erx + entry,
 +							   status);
++		}
  		if (unlikely(status == discard_frame)) {
  			page_pool_recycle_direct(rx_q->page_pool, buf->page);
  			buf->page = NULL;

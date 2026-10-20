@@ -13,16 +13,14 @@ Signed-off-by: Furong Xu <0x1207@gmail.com>
 Link: https://patch.msgid.link/20250103093733.3872939-1-0x1207@gmail.com
 Signed-off-by: Paolo Abeni <pabeni@redhat.com>
 ---
- drivers/net/ethernet/stmicro/stmmac/stmmac_main.c | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
-index 0734c90..fc49123 100644
+index 4d888b4..8bd0918 100644
 --- a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
 +++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
-@@ -5533,7 +5533,7 @@ read_again:
- 							   rx_q->dma_erx + entry,
+@@ -5539,7 +5539,7 @@ static int stmmac_rx(struct stmmac_priv *priv, int limit, u32 queue)
  							   status);
+ 		}
  		if (unlikely(status == discard_frame)) {
 -			page_pool_recycle_direct(rx_q->page_pool, buf->page);
 +			page_pool_put_page(rx_q->page_pool, buf->page, 0, true);
