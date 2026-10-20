@@ -315,6 +315,10 @@ void siwifi_set_vht_capa(struct siwifi_hw *siwifi_hw, struct wiphy *wiphy)
         }
         if (!vht_cap)
             continue;
+        if (band == NL80211_BAND_2GHZ) {
+            vht_cap->vht_supported = false;
+            continue;
+        }
         vht_cap->vht_supported = true;
         if (siwifi_hw->mod_params->use_80 && band == NL80211_BAND_5GHZ)
             bw_max = PHY_CHNL_BW_80;
