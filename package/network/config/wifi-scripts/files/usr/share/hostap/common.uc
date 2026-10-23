@@ -71,7 +71,7 @@ function find_reusable_wdev(phyidx)
 	// An interface that is up but has no carrier yet, like an AP that is
 	// still starting, is in use. Only take interfaces that are admin down.
 	for (let res in data)
-		if (!(hex(trim(readfile(`/sys/class/net/${res.ifname}/flags`))) & 1))
+		if (!(hex(trim(readfile("/sys/class/net/" + res.ifname + "/flags"))) & 1))
 			return res.ifname;
 	return null;
 }

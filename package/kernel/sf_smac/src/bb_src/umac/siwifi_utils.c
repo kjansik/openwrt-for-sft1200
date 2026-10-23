@@ -1219,11 +1219,58 @@ int siwifi_channel_recovery_check(struct siwifi_hw *siwifi_hw)
         printk("send siwifi_send_get_channel_info_req fail!\n");
         return 0;
     }
-    spin_lock_bh(&siwifi_hw->cb_lock);
-    if (!(siwifi_hw->chanctx_table[vif_sta->ch_index].chan_def.chan)) {
-        printk("vif_sta %s [ch_idx %d].chan_def.chan is NULL\n", vif_sta->ndev->name, vif_sta->ch_index);
+        spin_lock_bh(&siwifi_hw->cb_lock);
+
+    /*
+     * Ak je STA vif asociovany (carrier up), chanctx NEMENIME a nic
+     * neporovnavame. Firmware pri AP+STA vracia vo get_channel_info
+     * freq=0, co sa inak vyhodnoti ako "mismatch" a nasledny unlink +
+     * CSA zhodi STA aj AP. Recovery ma zmysel len po restarte firmware.
+     */
+    if (vif_sta->ndev && netif_carrier_ok(vif_sta->ndev)) {
         spin_unlock_bh(&siwifi_hw->cb_lock);
         return 0;
+    }
+
+    /*
+     * vif_sta->ch_index sa rovná SIWIFI_CH_NOT_SET (0xFF), kym STA vif
+     * nedostane chanctx. chanctx_table ma NX_CHAN_CTXT_CNT (3) poloziek,
+     * takze indexovat 0xFF by bolo out-of-bounds. Ak firmware hlasi platny
+     * kanal, chanctx obnovime; inak bezpecne skoncime.
+     */
+    if (vif_sta->ch_index >= NX_CHAN_CTXT_CNT ||
+        !(siwifi_hw->chanctx_table[vif_sta->ch_index].chan_def.chan)) {
+        struct cfg80211_chan_def chandef;
+        struct ieee80211_channel *chan;
+
+        if (!channel_freq || channel_idx >= NX_CHAN_CTXT_CNT) {
+            printk("vif_sta %s [ch_idx %d].chan_def.chan is NULL (fw freq=%d idx=%d) - cannot recover\n",
+                   vif_sta->ndev->name, vif_sta->ch_index, channel_freq, channel_idx);
+            spin_unlock_bh(&siwifi_hw->cb_lock);
+            return 0;
+        }
+
+        chan = ieee80211_get_channel(siwifi_hw->wiphy, channel_freq);
+        if (!chan) {
+            printk("vif_sta %s: no ieee80211_channel for freq %d\n",
+                   vif_sta->ndev->name, channel_freq);
+            spin_unlock_bh(&siwifi_hw->cb_lock);
+            return 0;
+        }
+
+        siwifi_chanctx_unlink(vif_sta);
+
+        cfg80211_chandef_create(&chandef, chan, NL80211_CHAN_NO_HT);
+        if (!siwifi_hw->mod_params->ht_on)
+            chandef.width = NL80211_CHAN_WIDTH_20_NOHT;
+        else
+            chandef.width = channel_width;
+        chandef.center_freq1 = cfm.center_freq1;
+        chandef.center_freq2 = cfm.center_freq2;
+
+        siwifi_chanctx_link(vif_sta, channel_idx, &chandef);
+        printk("recovered chanctx: %s ch_idx %d freq %d width %d\n",
+               vif_sta->ndev->name, channel_idx, channel_freq, channel_width);
     }
     if (channel_freq != siwifi_hw->chanctx_table[vif_sta->ch_index].chan_def.chan->center_freq ||
             channel_width != siwifi_hw->chanctx_table[vif_sta->ch_index].chan_def.width ||

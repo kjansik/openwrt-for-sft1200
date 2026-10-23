@@ -1488,6 +1488,47 @@ static int siwifi_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
         return -EINVAL;
     }
 #endif
+    /*
+     * STA vif musi mat lokalny chanctx PRED odoslanim connect requestu,
+     * inak je TX fronta zastavena (SIWIFI_TXQ_STOP_CHAN) a auth ram sa
+     * nikdy neodosle -> firmware sa nepripoji a SM_CONNECT_IND nepride.
+     * Kanal pozname z BSS najdeneho pri skene (sme->channel).
+     */
+    if (sme->channel && (siwifi_vif->ch_index == SIWIFI_CH_NOT_SET)) {
+        struct cfg80211_chan_def chandef;
+        struct siwifi_chanctx *ctxt;
+        u8 ch_idx;
+        bool reused = false;
+
+        /* reuse a chanctx on the same centre freq (typically the AP vif) and
+         * link it with a NULL chandef: chanctx_link() then skips
+         * check_vif_channel_same() and no CSA is sent to the AP. */
+        for (ch_idx = 0; ch_idx < NX_CHAN_CTXT_CNT; ch_idx++) {
+            ctxt = &siwifi_hw->chanctx_table[ch_idx];
+            if (ctxt->chan_def.chan &&
+                ctxt->chan_def.chan->center_freq == sme->channel->center_freq) {
+                siwifi_chanctx_link(siwifi_vif, ch_idx, NULL);
+                netdev_info(dev, "sta chanctx reused: idx %d freq %d\n",
+                            ch_idx, sme->channel->center_freq);
+                reused = true;
+                break;
+            }
+        }
+
+        if (!reused) {
+            for (ch_idx = 0; ch_idx < NX_CHAN_CTXT_CNT; ch_idx++)
+                if (siwifi_hw->chanctx_table[ch_idx].count == 0)
+                    break;
+            if (ch_idx < NX_CHAN_CTXT_CNT) {
+                cfg80211_chandef_create(&chandef, sme->channel, NL80211_CHAN_HT20);
+                siwifi_chanctx_link(siwifi_vif, ch_idx, &chandef);
+                netdev_info(dev, "sta chanctx linked: idx %d freq %d\n",
+                            ch_idx, sme->channel->center_freq);
+            } else {
+                netdev_warn(dev, "no free chanctx slot for STA vif\n");
+            }
+        }
+    }
     if ((error = siwifi_send_sm_connect_req(siwifi_hw, siwifi_vif, sme, &sm_connect_cfm)))
         return error;
     switch (sm_connect_cfm.status)
