@@ -586,8 +586,22 @@ static int siwifi_check_vif_channel_same(struct siwifi_vif *vif, u8 ch_idx,
         if (vif_tmp == vif_sta){
             continue;
         }
+        /* ch_index == SIWIFI_CH_NOT_SET (0xFF) by byl out-of-bounds */
+        if (vif_tmp->ch_index >= NX_CHAN_CTXT_CNT) {
+            continue;
+        }
         ctxt2 = &vif_tmp->siwifi_hw->chanctx_table[vif_tmp->ch_index];
         if (ctxt2->chan_def.chan == NULL || chandef_sta->chan == NULL) {
+            continue;
+        }
+
+        /*
+         * Kanal sa moze rovnat a sirka nie. Firmware na jednom LMAC nezvlada
+         * 80 MHz + 40 MHz sucasne a kontext si zuzi. Prelinkovanie vifu do
+         * kontextu s inou sirkou vrati status=2 (linked, chandef mismatch),
+         * AP prestane beaconovat a klienti zahodia cached PSK.
+         */
+        if (ctxt2->chan_def.width != chandef_sta->width) {
             continue;
         }
         cfg80211_ch_switch_notify(vif_tmp->ndev, chandef_sta, 0);

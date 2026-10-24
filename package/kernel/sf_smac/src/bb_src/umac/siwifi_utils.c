@@ -1290,6 +1290,28 @@ int siwifi_channel_recovery_check(struct siwifi_hw *siwifi_hw)
             spin_unlock_bh(&siwifi_hw->cb_lock);
             return 0;
         }
+        if (channel_idx == vif_sta->ch_index) {
+            /* firmware si sirku zuzil sam - prepis chan_def in-place,
+             * unlink by zastavil TX a spustil CSA storm */
+            chan = ieee80211_get_channel(siwifi_hw->wiphy, channel_freq);
+            if (!chan) {
+                spin_unlock_bh(&siwifi_hw->cb_lock);
+                return 0;
+            }
+            cfg80211_chandef_create(&chandef, chan, NL80211_CHAN_NO_HT);
+            if (!siwifi_hw->mod_params->ht_on)
+                chandef.width = NL80211_CHAN_WIDTH_20_NOHT;
+            else
+                chandef.width = channel_width;
+            chandef.center_freq1 = cfm.center_freq1;
+            chandef.center_freq2 = cfm.center_freq2;
+            siwifi_hw->chanctx_table[vif_sta->ch_index].chan_def = chandef;
+            printk("resynced chanctx: %s ch_idx %d freq %d width %d\n",
+                   vif_sta->ndev->name, vif_sta->ch_index,
+                   channel_freq, channel_width);
+            spin_unlock_bh(&siwifi_hw->cb_lock);
+            return 1;
+        }
         siwifi_chanctx_unlink(vif_sta);
         chan = ieee80211_get_channel(siwifi_hw->wiphy, channel_freq);
         cfg80211_chandef_create(&chandef, chan, NL80211_CHAN_NO_HT);
