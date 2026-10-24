@@ -315,7 +315,15 @@ void siwifi_set_vht_capa(struct siwifi_hw *siwifi_hw, struct wiphy *wiphy)
         }
         if (!vht_cap)
             continue;
-        if (band == NL80211_BAND_2GHZ) {
+        /*
+         * VHT nie je pouzitelne pri sucasnom AP+STA na jednom LMAC.
+         * STA ako klient vyjedna VHT80 (80 MHz), kym AP kontext firmware
+         * zuzi na 40 MHz -> "The AP channel(X) should follow the sta
+         * channel(X)" -> firmware VIF prelinkuje (status=2), AP prestane
+         * beaconovat, klienti zahodia cached PSK a CCA/ACS sa zacykli
+         * na step 6. 8c6241b to iste spravil pre 2,4 GHz.
+         */
+        if (band == NL80211_BAND_2GHZ || band == NL80211_BAND_5GHZ) {
             vht_cap->vht_supported = false;
             continue;
         }
