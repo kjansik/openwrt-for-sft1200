@@ -2,6 +2,29 @@
 
 **Community build. NOT official OpenWrt.**
 
+## Download
+
+Pinned to tag `v1-sft1200-25.12` (this exact build). Replace `<TAG>` with the tag
+or, better, use the commit hash instead of `tag/<TAG>` for a link that never moves.
+
+- sysupgrade.tar (from a running OpenWrt):
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/<TAG>/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-sysupgrade.tar
+- factory.img (U-Boot recovery only):
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/<TAG>/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-factory.img
+- checksums:
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/<TAG>/images/SHA256SUMS
+
+Verify before flashing: `sha256sum -c SHA256SUMS` (run it in the same directory
+as the downloaded files).
+
+Note on URL shapes (Forgejo): `raw/branch/<name>` works only for branches;
+for tags use `raw/tag/<tag>`; for a frozen link use `raw/commit/<sha>`.
+
+Note on hashes: `.tar`/`.img` hashes in SHA256SUMS identify the exact build tested
+on hardware. A rebuild from the same source produces different `.tar`/`.img` hashes
+(squashfs timestamps) - compare `*.manifest`, `config.buildinfo`, `feeds.buildinfo`
+and `version.buildinfo` to prove two images come from the same source.
+
 OpenWrt 25.12 image for the GL-SFT1200, including the driver and script fixes
 needed to use it as a travel router with a working 5 GHz repeater.
 
