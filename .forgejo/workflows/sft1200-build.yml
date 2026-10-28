@@ -1,0 +1,98 @@
+name: sft1200-build
+
+# Real buildroot build producing the factory.img / sysupgrade.tar pair plus the
+# provenance files (*.manifest, config.buildinfo, feeds.buildinfo,
+# version.buildinfo) that the release is missing.
+#
+# A build needs hours and tens of GB, so it cannot run on Codeberg's hosted
+# runners. Register a runner on a machine you own and label it sft1200:
+#
+#   forgejo-runner register --no-interactive \
+#     --instance https://codeberg.org \
+#     --token <RUNNER_TOKEN_FROM_REPO_SETTINGS_ACTIONS_RUNNERS> \
+#     --name sft1200-builder --labels sft1200
+#   forgejo-runner daemon
+#
+# Then start this workflow by hand. It never runs on push, so a misconfigured
+# trigger cannot tie up your builder.
+
+on:
+  workflow_dispatch:
+    inputs:
+      make_jobs:
+        description: "-j value for make"
+        required: false
+        default: "4"
+
+jobs:
+  build:
+    runs-on: sft1200
+    timeout-minutes: 600
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain prerequisites
+        run: |
+          for b in gcc g++ make unzip gawk subversion rsync file python3 \
+                   libncurses-dev zlib1g-dev libssl-dev ; do
+            if ! dpkg -s "$b" >/dev/null 2>&1 ; then
+              echo "missing prerequisite: $b"
+              echo "install it on the builder host, then re-run"
+              exit 1
+            fi
+          done
+          echo "ok   prerequisites present"
+
+      - name: Configure
+        run: |
+          cp configs/sft1200-25.12.config .config
+          make defconfig
+          # If defconfig rewrote anything, the shipped config is stale and the
+          # resulting image would not match what the repository documents.
+          if ! diff -u configs/sft1200-25.12.config .config > defconfig.diff ; then
+            echo "note: defconfig changed the config; showing diff"
+            cat defconfig.diff
+          fi
+
+      - name: Download sources
+        run: make -j"${{ inputs.make_jobs }}" download
+
+      - name: Build
+        run: make -j"${{ inputs.make_jobs }}" V=s
+
+      - name: Collect artifacts
+        run: |
+          d=bin/targets/siflower/sf19a2890
+          ls -l "$d"
+          target="artifacts"
+          rm -rf "$target" && mkdir -p "$target"
+          for f in "$d"/*squashfs-factory.img "$d"/*squashfs-sysupgrade.tar \
+                   "$d"/*.manifest "$d"/config.buildinfo "$d"/feeds.buildinfo \
+                   "$d"/version.buildinfo ; do
+            [ -e "$f" ] && cp "$f" "$target/"
+          done
+          (cd "$target" && sha256sum * > SHA256SUMS && cat SHA256SUMS)
+          # Fail loudly rather than silently publish a release without provenance.
+          for f in "$target"/*.manifest "$target"/config.buildinfo \
+                   "$target"/feeds.buildinfo "$target"/version.buildinfo ; do
+            [ -s "$f" ] || { echo "missing provenance: $f" ; exit 1 ; }
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sft1200-images-and-provenance
+          path: artifacts/
+          retention-days: 90
+
+      - name: Compare with the published images
+        run: |
+          target="artifacts"
+          for base in squashfs-factory.img squashfs-sysupgrade.tar ; do
+            pub=$(ls images/*"$base" 2>/dev/null | head -1)
+            built=$(ls "$target"/*"$base" 2>/dev/null | head -1)
+            [ -n "$pub" ] && [ -n "$built" ] || continue
+            echo "$base"
+            echo "  published: $(sha256sum "$pub"  | cut -d' ' -f1)"
+            echo "  built:     $(sha256sum "$built" | cut -d' ' -f1)"
+          done
+          echo "identical hashes mean the published image is reproducible from this config"

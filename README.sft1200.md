@@ -50,6 +50,51 @@ needed to use it as a travel router with a working 5 GHz repeater.
 
 Images land in bin/targets/siflower/sf19a2890/.
 
+## Continuous integration
+
+The repository carries the full upstream OpenWrt CI in .github/workflows/.
+Those workflows target upstream buildbot and do not build this port. Forgejo
+(and therefore Codeberg) only reads the *first* workflow directory it finds,
+checking .forgejo/workflows, then .gitea/workflows, then .github/workflows.
+Because .forgejo/workflows now exists, the upstream workflows are not run
+here at all.
+
+- .forgejo/workflows/sft1200-consistency.yml (hosted runner, ~1 min)
+  Runs on push to sync and on pull requests. It does not compile anything.
+  It checks that images/ still matches SHA256SUMS, that
+  configs/sft1200-25.12.config still enables the packages the sections above
+  document, that the in-tree SiFlower patches are still present (they are
+  plain edits, not *.patch files, so an upstream sync can drop them silently),
+  that no two paths collide when case is folded, and that .gitattributes keeps
+  the * -text rule.
+
+  A real buildroot build takes hours. Codeberg's hosted runners are capped at
+  2/5/10 minutes and their policy rules out heavy pipelines, so no hosted job
+  attempts to compile.
+
+- .forgejo/workflows/sft1200-build.yml (self-hosted runner, manual only)
+  Builds the images and collects the provenance files. It only runs through
+  workflow_dispatch, never on push. It requires a runner registered on a
+  machine you own, labelled sft1200; see the header of that file.
+
+## Provenance for the release
+
+The release ships the two images but not the build metadata. OpenWrt writes
+*.manifest, config.buildinfo, feeds.buildinfo and version.buildinfo next to
+the images in bin/targets/siflower/sf19a2890/, and those are what make a
+release auditable. They cannot be reconstructed afterwards, so they have to
+come from the build that produced the images:
+
+    scripts/sft1200-collect-provenance.sh
+
+Run it on the build machine, from the top of the repository. It refuses to
+copy anything unless the images it finds in the build output are byte
+identical to the published ones, so provenance from an unrelated build can
+never end up attached to this release. It then updates images/SHA256SUMS.
+
+Either that, or run .forgejo/workflows/sft1200-build.yml on your own runner,
+which produces the images and the provenance files together as an artifact.
+
 ## What works
 
 - Switch (mxl-gsw1xx, GSW150 variant detection), LAN1/LAN2/WAN, 1 Gbps

@@ -1,0 +1,85 @@
+name: sft1200-consistency
+
+# Cheap guard for the SFT1200 port: the published images must stay in step
+# with the config and the in-tree patches.
+#
+# This does NOT compile anything. A full buildroot build takes hours, while
+# the hosted Codeberg runners are capped at 10 minutes (codeberg-medium) and
+# their usage policy rules out heavyweight pipelines. The real build is the
+# self-hosted job in sft1200-build.yml.
+
+on:
+  push:
+    branches: [sync]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: codeberg-tiny
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Published images match SHA256SUMS
+        run: |
+          cd images
+          sha256sum -c SHA256SUMS
+
+      - name: Config still enables what the documentation promises
+        run: |
+          c=configs/sft1200-25.12.config
+          fail=0
+          for pkg in luci-app-travelmate luci-app-firewall luci-app-package-manager luci-proto-wireguard ; do
+            if grep -qx "CONFIG_PACKAGE_$pkg=y" "$c" ; then
+              echo "ok   $pkg"
+            else
+              echo "FAIL $pkg not enabled in $c"
+              fail=1
+            fi
+          done
+          for pkg in kmod-wireguard wireguard-tools travelmate ; do
+            if grep -qx "CONFIG_PACKAGE_$pkg=y" "$c" ; then
+              echo "ok   $pkg"
+            else
+              echo "FAIL $pkg not enabled in $c"
+              fail=1
+            fi
+          done
+          exit "$fail"
+
+      - name: SiFlower workarounds are still in the tree
+        run: |
+          # These live as in-tree edits, not as *.patch files, so a bad merge
+          # or an upstream sync can silently drop them.
+          fail=0
+          for f in \
+            package/kernel/sf_smac/src/bb_src/umac/fullmac/siwifi_main.c \
+            package/kernel/sf_smac/src/bb_src/umac/siwifi_utils.c \
+            package/kernel/sf_smac/src/bb_src/umac/siwifi_mod_params.c \
+            package/network/config/wifi-scripts/files/usr/share/hostap/common.uc \
+            package/network/config/wifi-scripts/files-ucode/usr/share/ucode/wifi/common.uc
+          do
+            if [ -f "$f" ] ; then
+              echo "ok   $f"
+            else
+              echo "FAIL missing $f"
+              fail=1
+            fi
+          done
+          exit "$fail"
+
+      - name: No case-colliding paths (Windows checkout)
+        run: |
+          dups=$(git ls-files | tr 'A-Z' 'a-z' | sort | uniq -d)
+          if [ -n "$dups" ] ; then
+            echo "paths collide when case is folded:"
+            echo "$dups"
+            exit 1
+          fi
+          echo "ok   $(git ls-files | wc -l) tracked paths, no case collisions"
+
+      - name: Tree is stored without CRLF mangling
+        run: |
+          grep -qx '\* -text' .gitattributes || { echo "FAIL .gitattributes lost '* -text'"; exit 1; }
+          echo "ok   .gitattributes"
