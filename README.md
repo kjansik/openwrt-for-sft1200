@@ -1,5 +1,16 @@
 ![OpenWrt logo](include/logo.png)
 
+> **This repository is a GL.iNet GL-SFT1200 (Opal) port, not upstream OpenWrt.**
+>
+> * Device-specific build, download and flashing instructions:
+>   **[README.sft1200.md](README.sft1200.md)**
+> * Release: [v1-sft1200-25.12](https://codeberg.org/kjansik/openwrt-for-sft1200/releases/tag/v1-sft1200-25.12)
+> * Target: `siflower/sf19a2890`, device `glinet_gl-sft1200`, config
+>   `configs/sft1200-25.12.config`
+>
+> Community build. NOT official OpenWrt. The text below is the unmodified
+> upstream OpenWrt README.
+
 OpenWrt Project is a Linux operating system targeting embedded devices. Instead
 of trying to create a single, static firmware, OpenWrt provides a fully
 writable filesystem with package management. This frees you from the

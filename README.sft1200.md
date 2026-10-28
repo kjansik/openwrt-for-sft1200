@@ -4,15 +4,21 @@
 
 ## Download
 
-Pinned to tag `v1-sft1200-25.12` (this exact build). Replace `<TAG>` with the tag
-or, better, use the commit hash instead of `tag/<TAG>` for a link that never moves.
+Release `v1-sft1200-25.12` (commit `6eacd0037fcec8b09443baf340551d47be013767`).
+Both images are also attached to the release page:
+
+https://codeberg.org/kjansik/openwrt-for-sft1200/releases/tag/v1-sft1200-25.12
 
 - sysupgrade.tar (from a running OpenWrt):
-  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/<TAG>/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-sysupgrade.tar
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v1-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-sysupgrade.tar
 - factory.img (U-Boot recovery only):
-  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/<TAG>/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-factory.img
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v1-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-factory.img
 - checksums:
-  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/<TAG>/images/SHA256SUMS
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v1-sft1200-25.12/images/SHA256SUMS
+
+For a frozen link that never moves even if the tag is ever re-pointed, swap
+`tag/v1-sft1200-25.12` for `commit/6eacd0037fcec8b09443baf340551d47be013767`:
+`raw/commit/<sha>/...` returns the same bytes.
 
 Verify before flashing: `sha256sum -c SHA256SUMS` (run it in the same directory
 as the downloaded files).
@@ -20,10 +26,14 @@ as the downloaded files).
 Note on URL shapes (Forgejo): `raw/branch/<name>` works only for branches;
 for tags use `raw/tag/<tag>`; for a frozen link use `raw/commit/<sha>`.
 
-Note on hashes: `.tar`/`.img` hashes in SHA256SUMS identify the exact build tested
-on hardware. A rebuild from the same source produces different `.tar`/`.img` hashes
-(squashfs timestamps) - compare `*.manifest`, `config.buildinfo`, `feeds.buildinfo`
-and `version.buildinfo` to prove two images come from the same source.
+Note on hashes: the `.tar`/`.img` hashes in SHA256SUMS identify the exact build
+tested on hardware. A rebuild from the same source produces different `.tar`/`.img`
+hashes (squashfs timestamps), so compare `*.manifest`, `config.buildinfo`,
+`feeds.buildinfo` and `version.buildinfo` from your own
+`bin/targets/siflower/sf19a2890/` against the build they describe. Those
+provenance files are not published under `images/` yet - only the two images and
+SHA256SUMS are, so today that comparison only works against a build you make
+yourself.
 
 OpenWrt 25.12 image for the GL-SFT1200, including the driver and script fixes
 needed to use it as a travel router with a working 5 GHz repeater.
