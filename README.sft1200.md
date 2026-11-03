@@ -218,6 +218,22 @@ Keep GL.iNet U-Boot recovery (192.168.1.1 with reset held) available.
   VHT (0x038001b1) while 2.4 GHz does not (0x03800191), which is exactly the
   state the AP+STA blocker needs.
 
+## Checking a rebuilt image on a device
+
+    dmesg | grep 'lb:the value of mode'    # nothing after a 2.4 GHz association
+    iw phy phy0 info | grep VHT            # nothing: VHT is off on both bands
+    iw dev phy1-sta0 link                  # 5 GHz uplink, 40 MHz, no VHT
+    uci get wireless.radio1.htmode         # HT40
+
+For the DHCP path, follow the uplink coming up:
+
+    logread -f | grep -i -e udhcpc -e dhcp # lease within a few seconds
+
+If the low band regresses after flashing, the only commit that changes what
+the driver sends to the firmware is the ME config band selection
+(siwifi_msg_tx.c, siwifi_send_me_config_req()); `git revert` of that commit
+returns the tree to the image that was released.
+
 ## Licence
 
 GPL-2.0. The corresponding source for every released image is this
