@@ -48,25 +48,50 @@ jobs:
           done
           exit "$fail"
 
-      - name: SiFlower workarounds are still in the tree
+      - name: SiFlower workarounds are still in the tree, with their content
         run: |
           # These live as in-tree edits, not as *.patch files, so a bad merge
-          # or an upstream sync can silently drop them.
+          # or an upstream sync can silently drop them. Testing that the file
+          # still exists is not enough: the files themselves are upstream code
+          # and survive a sync even when the fix inside them is gone. Assert
+          # the fixed line instead.
           fail=0
-          for f in \
-            package/kernel/sf_smac/src/bb_src/umac/fullmac/siwifi_main.c \
-            package/kernel/sf_smac/src/bb_src/umac/siwifi_utils.c \
-            package/kernel/sf_smac/src/bb_src/umac/siwifi_mod_params.c \
-            package/network/config/wifi-scripts/files/usr/share/hostap/common.uc \
-            package/network/config/wifi-scripts/files-ucode/usr/share/ucode/wifi/common.uc
-          do
-            if [ -f "$f" ] ; then
-              echo "ok   $f"
+          check() { # $1 file, $2 fixed string, $3 label
+            if [ ! -f "$1" ] ; then
+              echo "FAIL $3: $1 is missing"
+              fail=1
+              return
+            fi
+            if grep -qF -- "$2" "$1" ; then
+              echo "ok   $3"
             else
-              echo "FAIL missing $f"
+              echo "FAIL $3: expected '$2' in $1"
               fail=1
             fi
-          done
+          }
+          check package/kernel/sf_smac/src/bb_src/umac/siwifi_mod_params.c \
+            'band == NL80211_BAND_2GHZ || band == NL80211_BAND_5GHZ' \
+            '62dee89 VHT disabled on 5 GHz as well as 2.4 GHz'
+          check package/kernel/sf_smac/src/bb_src/umac/fullmac/siwifi_main.c \
+            'ctxt2->chan_def.width != chandef_sta->width' \
+            'c7a4fc5 no vif merge across mismatched channel width'
+          check package/kernel/sf_smac/src/bb_src/umac/fullmac/siwifi_main.c \
+            'vif_tmp->ch_index >= NX_CHAN_CTXT_CNT' \
+            'c7a4fc5 ch_index bounds guard in check_vif_channel_same()'
+          check package/kernel/sf_smac/src/bb_src/umac/siwifi_utils.c \
+            'netif_carrier_ok(vif_sta->ndev)' \
+            '953b554 no chanctx recovery while the STA has carrier'
+          check package/network/config/wifi-scripts/files/usr/share/hostap/common.uc \
+            'readfile("/sys/class/net/" + res.ifname + "/flags")' \
+            '953b554 template literal replaced by string concatenation'
+          # files-ucode is upstream code this port does not patch; only its
+          # presence is asserted, so a sync that drops the file fails loudly.
+          if [ -f package/network/config/wifi-scripts/files-ucode/usr/share/ucode/wifi/common.uc ] ; then
+            echo "ok   files-ucode wifi helper present"
+          else
+            echo "FAIL files-ucode/usr/share/ucode/wifi/common.uc is missing"
+            fail=1
+          fi
           exit "$fail"
 
       - name: No case-colliding paths (Windows checkout)

@@ -20,8 +20,16 @@ For a frozen link that never moves even if the tag is ever re-pointed, swap
 `tag/v1-sft1200-25.12` for `commit/6eacd0037fcec8b09443baf340551d47be013767`:
 `raw/commit/<sha>/...` returns the same bytes.
 
-Verify before flashing: `sha256sum -c SHA256SUMS` (run it in the same directory
-as the downloaded files).
+Verify before flashing: download the images and `images/SHA256SUMS` from the
+same ref, put them in one directory and run `sha256sum -c SHA256SUMS` there.
+That in-repository file (two lines) is the authoritative one.
+
+Do **not** use the `sha256sums` asset attached to the release page yet. It
+lists seven files, and five of them - `*.manifest`, `config.buildinfo`,
+`feeds.buildinfo`, `version.buildinfo`, `profiles.json` - are not published
+anywhere, so `sha256sum -c` reports `WARNING: 5 listed files could not be
+read`. It is a leftover from the build that produced the images; see
+"Provenance for the release" below.
 
 Note on URL shapes (Forgejo): `raw/branch/<name>` works only for branches;
 for tags use `raw/tag/<tag>`; for a frozen link use `raw/commit/<sha>`.
@@ -34,6 +42,18 @@ hashes (squashfs timestamps), so compare `*.manifest`, `config.buildinfo`,
 provenance files are not published under `images/` yet - only the two images and
 SHA256SUMS are, so today that comparison only works against a build you make
 yourself.
+
+### What the released image says about itself
+
+`/etc/openwrt_release` inside the published rootfs reports
+`DISTRIB_REVISION='r0-8c6241b'` and `DISTRIB_DESCRIPTION='OpenWrt 25.12-SNAPSHOT
+r0-8c6241b'`, while the release tag points at `6eacd00`. The image is newer than
+that string suggests: `/usr/share/hostap/common.uc` inside it is byte-identical
+to this branch (`sha256 1407a8dd…`), so it already carries the fix from
+`953b554`, which is three commits after `8c6241b`. The images were built from a
+work tree that still carried uncommitted fixes, so the generated revision
+lags. This is a good example of why the provenance files matter: without them
+the only trace of the source tree is a string that turns out to be wrong.
 
 OpenWrt 25.12 image for the GL-SFT1200, including the driver and script fixes
 needed to use it as a travel router with a working 5 GHz repeater.
@@ -63,10 +83,11 @@ here at all.
   Runs on push to sync and on pull requests. It does not compile anything.
   It checks that images/ still matches SHA256SUMS, that
   configs/sft1200-25.12.config still enables the packages the sections above
-  document, that the in-tree SiFlower patches are still present (they are
-  plain edits, not *.patch files, so an upstream sync can drop them silently),
-  that no two paths collide when case is folded, and that .gitattributes keeps
-  the * -text rule.
+  document, that the in-tree SiFlower fixes are still present **with their
+  content** (the patched files are upstream code and survive an upstream sync
+  even when the fix inside them is gone, so the job greps for the fixed line
+  instead of only testing that the file exists), that no two paths collide
+  when case is folded, and that .gitattributes keeps the * -text rule.
 
   A real buildroot build takes hours. Codeberg's hosted runners are capped at
   2/5/10 minutes and their policy rules out heavy pipelines, so no hosted job
@@ -75,7 +96,11 @@ here at all.
 - .forgejo/workflows/sft1200-build.yml (self-hosted runner, manual only)
   Builds the images and collects the provenance files. It only runs through
   workflow_dispatch, never on push. It requires a runner registered on a
-  machine you own, labelled sft1200; see the header of that file.
+  machine you own, labelled sft1200; see the header of that file. It stops
+  with an error when `make defconfig` rewrites the shipped config, and it
+  compares the built `*.manifest` and `config.buildinfo` against the published
+  ones instead of comparing image hashes - a rebuild rewrites the squashfs
+  timestamps, so equal image hashes were never a reproducibility test.
 
 ## Provenance for the release
 

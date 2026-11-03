@@ -47,12 +47,19 @@ jobs:
         run: |
           cp configs/sft1200-25.12.config .config
           make defconfig
-          # If defconfig rewrote anything, the shipped config is stale and the
-          # resulting image would not match what the repository documents.
+          # If defconfig rewrote anything, the shipped config is stale: the
+          # image would not match what the repository documents and nobody
+          # could rebuild it from configs/. Stop before spending hours on it.
           if ! diff -u configs/sft1200-25.12.config .config > defconfig.diff ; then
-            echo "note: defconfig changed the config; showing diff"
+            echo "error: make defconfig changed the shipped config"
             cat defconfig.diff
+            echo
+            echo "Refresh configs/sft1200-25.12.config from a reviewed .config"
+            echo "(or fix whatever makes the shipped config unsatisfiable),"
+            echo "commit it, and run this job again."
+            exit 1
           fi
+          echo "ok   shipped config survives make defconfig unchanged"
 
       - name: Download sources
         run: make -j"${{ inputs.make_jobs }}" download
@@ -84,15 +91,42 @@ jobs:
           path: artifacts/
           retention-days: 90
 
-      - name: Compare with the published images
+      - name: Compare with the published provenance
         run: |
-          target="artifacts"
-          for base in squashfs-factory.img squashfs-sysupgrade.tar ; do
-            pub=$(ls images/*"$base" 2>/dev/null | head -1)
-            built=$(ls "$target"/*"$base" 2>/dev/null | head -1)
-            [ -n "$pub" ] && [ -n "$built" ] || continue
-            echo "$base"
-            echo "  published: $(sha256sum "$pub"  | cut -d' ' -f1)"
-            echo "  built:     $(sha256sum "$built" | cut -d' ' -f1)"
+          # Image hashes are NOT a reproducibility test: every rebuild rewrites
+          # the squashfs timestamps, so the bytes differ even for an identical
+          # source tree. The manifest and config.buildinfo are the files that
+          # have to match. version.buildinfo is printed only, because it
+          # carries the tree revision and moves with every commit.
+          fail=0
+          pub=images
+          built=artifacts
+          fw=openwrt-siflower-sf19a2890-glinet_gl-sft1200
+          for f in "$fw.manifest" config.buildinfo ; do
+            p="$pub/$f"
+            b="$built/$f"
+            if [ ! -f "$p" ] ; then
+              echo "note: $f is not published in images/ - no comparison possible"
+              continue
+            fi
+            if [ ! -f "$b" ] ; then
+              echo "FAIL built $f missing from $built"
+              fail=1
+              continue
+            fi
+            if diff -u "$p" "$b" ; then
+              echo "ok   $f identical to the published file"
+            else
+              echo "FAIL $f differs from the published file"
+              fail=1
+            fi
           done
-          echo "identical hashes mean the published image is reproducible from this config"
+          for f in feeds.buildinfo version.buildinfo ; do
+            p="$pub/$f"
+            b="$built/$f"
+            [ -f "$p" ] && [ -f "$b" ] || continue
+            echo "info $f"
+            echo "     published: $(cat "$p")"
+            echo "     built:     $(cat "$b")"
+          done
+          exit "$fail"
