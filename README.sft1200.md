@@ -134,6 +134,21 @@ which produces the images and the provenance files together as an artifact.
   (lmac: The AP channel should follow the sta channel), the AP stops
   beaconing, clients discard the cached PSK and re-ask for the password, and
   CCA/ACS loops at step 6.
+  A different symptom of the same mismatch: with VHT disabled but htmode left
+  at HT80, hostapd never brings the AP up and logs
+
+      nl80211: kernel reports: (extension) channel is disabled
+      Could not set channel for kernel driver
+      Interface initialization failed
+
+  VHT off is a driver capability, it does not change the configured width, so
+  radio1 has to be set explicitly:
+
+      uci set wireless.radio1.htmode='HT40'
+      uci commit wireless
+
+  The two errors above are not the same failure: the first is the firmware
+  merging a mismatched vif, the second is hostapd refusing the channel.
 - radio1 must use a fixed NON-DFS channel. With channel=auto the ACS picked a
   DFS channel (104/116), the AP never came up. Channels 36-48 and 149-165 are
   non-DFS. Not yet verified whether every non-DFS channel behaves the same.
@@ -149,6 +164,24 @@ which produces the images and the provenance files together as an artifact.
   link keeps being torn down.
 - AP and STA must never share one radio with different channel widths.
 - 2.4 GHz is HT20 only.
+- 2.4 GHz VHT is disabled too (8c6241b). This is a robustness fix, not a
+  gate: without it the STA still associates, completes WPA and eventually
+  gets a DHCP lease. What the enablement breaks is the low-band rate setup.
+  The driver advertises VHT for the 2.4 GHz band, siwifi_send_me_config_req()
+  forwards that to the LMAC as vht_supp, and the low-band firmware rejects
+  the resulting rate configuration:
+
+      lmac[0] rc_init: station_id=0 format_mod=4 ... max_bw=0
+      lmac[0] lb:the value of mode (4) is not right
+
+  (format_mod=4 is FORMATMOD_VHT, hal_desc.h; the string is inside the
+  firmware binaries, tagged lb: in the log.) With the capability off the
+  same line reports format_mod=2 (FORMATMOD_HT_MF) and the error is gone.
+  Measured on an HT20 AP: 14-170 s to IPv4-up (median 24 s) with VHT
+  advertised, < 1-7 s (median 2 s) without, 3/5 vs 6/6 HTTPS checks passing
+  afterwards. Those
+  await times are consistent with DHCP client retransmission backoff after
+  lost exchanges, not with a hard link failure.
 - iw dev phyX-staN link reports unreliable RX counters even while traffic
   flows; use /sys/class/net/*/statistics/.
 
@@ -180,7 +213,10 @@ Keep GL.iNet U-Boot recovery (192.168.1.1 with reset held) available.
   STA has carrier; in-place chan_def resync.
 
 - package/kernel/sf_smac/.../siwifi_mod_params.c
-  disable VHT on 5 GHz (same class of bug that 8c6241b fixed on 2.4 GHz).
+  disable VHT on 2.4 GHz (8c6241b) and on 5 GHz (62dee89); same class of bug,
+  fixed one band at a time. Without 62dee89 the 5 GHz band still advertises
+  VHT (0x038001b1) while 2.4 GHz does not (0x03800191), which is exactly the
+  state the AP+STA blocker needs.
 
 ## Licence
 
