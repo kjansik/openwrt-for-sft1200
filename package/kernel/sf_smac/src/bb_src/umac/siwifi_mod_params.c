@@ -316,18 +316,22 @@ void siwifi_set_vht_capa(struct siwifi_hw *siwifi_hw, struct wiphy *wiphy)
         if (!vht_cap)
             continue;
         /*
-         * VHT nie je pouzitelne pri sucasnom AP+STA na jednom LMAC.
-         * STA ako klient vyjedna VHT80 (80 MHz), kym AP kontext firmware
-         * zuzi na 40 MHz -> "The AP channel(X) should follow the sta
-         * channel(X)" -> firmware VIF prelinkuje (status=2), AP prestane
-         * beaconovat, klienti zahodia cached PSK a CCA/ACS sa zacykli
-         * na step 6. 8c6241b to iste spravil pre 2,4 GHz.
+         * VHT cannot be used with AP+STA on one LMAC: the STA negotiates
+         * VHT80 while the firmware narrows the AP context to 40 MHz ->
+         * "The AP channel(X) should follow the sta channel(X)" -> the
+         * firmware re-links the AP vif (status=2), the AP stops beaconing,
+         * clients drop the cached PSK and CCA/ACS loops at step 6.
+         * 8c6241b did this for 2.4 GHz, 62dee89 extended it to 5 GHz.
          */
         if (band == NL80211_BAND_2GHZ || band == NL80211_BAND_5GHZ) {
             vht_cap->vht_supported = false;
             continue;
         }
-        vht_cap->vht_supported = true;
+        /*
+         * Unreachable while the gate above covers both bands. This is the
+         * enablement for a band that is not gated; re-enabling one also
+         * needs the vht_supported = true assignment (see 62dee89^).
+         */
         if (siwifi_hw->mod_params->use_80 && band == NL80211_BAND_5GHZ)
             bw_max = PHY_CHNL_BW_80;
         else if (siwifi_hw->mod_params->use_2040)
