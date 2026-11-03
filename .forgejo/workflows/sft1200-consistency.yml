@@ -72,6 +72,9 @@ jobs:
           check package/kernel/sf_smac/src/bb_src/umac/siwifi_mod_params.c \
             'band == NL80211_BAND_2GHZ || band == NL80211_BAND_5GHZ' \
             '62dee89 VHT disabled on 5 GHz as well as 2.4 GHz'
+          check package/kernel/sf_smac/src/bb_src/umac/siwifi_msg_tx.c \
+            'is_hb ? NL80211_BAND_5GHZ' \
+            'me config caps taken from the band the radio drives'
           check package/kernel/sf_smac/src/bb_src/umac/fullmac/siwifi_main.c \
             'ctxt2->chan_def.width != chandef_sta->width' \
             'c7a4fc5 no vif merge across mismatched channel width'

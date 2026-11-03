@@ -874,22 +874,28 @@ int siwifi_send_me_config_req(struct siwifi_hw *siwifi_hw)
     struct ieee80211_sta_he_cap const *he_cap;
 #endif
     uint8_t *ht_mcs = NULL;
-    int i;
+    int i, band;
     SIWIFI_DBG(SIWIFI_FN_ENTRY_STR);
-    if ( wiphy->bands[NL80211_BAND_2GHZ] != NULL ) {
-        ht_cap = &wiphy->bands[NL80211_BAND_2GHZ]->ht_cap;
-        vht_cap = &wiphy->bands[NL80211_BAND_2GHZ]->vht_cap;
-        ht_mcs = (uint8_t *)&ht_cap->mcs;
-    }
-    if ( wiphy->bands[NL80211_BAND_5GHZ] != NULL ) {
-        ht_cap = &wiphy->bands[NL80211_BAND_5GHZ]->ht_cap;
-        vht_cap = &wiphy->bands[NL80211_BAND_5GHZ]->vht_cap;
-        ht_mcs = (uint8_t *)&ht_cap->mcs;
-    }
-    if (!ht_cap) {
+    /*
+     * Both bands are registered on every wiphy (siwifi_main.c), so reading
+     * the two bands back to back let 5 GHz win unconditionally: the low band
+     * radio was configured with the high band caps. siwifi_set_ht_capa()
+     * copies the HT caps to both bands and VHT is gated on both, so what is
+     * sent today does not change; selecting by the radio's own band only
+     * stops the result from depending on registration order.
+     */
+    band = siwifi_hw->mod_params->is_hb ? NL80211_BAND_5GHZ
+                                        : NL80211_BAND_2GHZ;
+    if (!wiphy->bands[band])
+        band = (band == NL80211_BAND_5GHZ) ? NL80211_BAND_2GHZ
+                                           : NL80211_BAND_5GHZ;
+    if (!wiphy->bands[band]) {
         printk("fatal error, no ht_cap, not inited?\n");
         return -EINVAL;
     }
+    ht_cap = &wiphy->bands[band]->ht_cap;
+    vht_cap = &wiphy->bands[band]->vht_cap;
+    ht_mcs = (uint8_t *)&ht_cap->mcs;
     req = siwifi_msg_zalloc(ME_CONFIG_REQ, TASK_ME, DRV_TASK_ID,
                                    sizeof(struct me_config_req));
     if (!req)
