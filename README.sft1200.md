@@ -6,7 +6,7 @@
 
 Release `v3-sft1200-25.12`, built from source commit `51f508c` (the release
 commit only adds the images and this documentation). Both images and the build
-provenance are in `images/` and attached to the release page:
+provenance are in `images/`; the release page points at the same tag:
 
 https://codeberg.org/kjansik/openwrt-for-sft1200/releases/tag/v3-sft1200-25.12
 
