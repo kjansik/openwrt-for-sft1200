@@ -4,20 +4,20 @@
 
 ## Download
 
-Release `v1-sft1200-25.12` (commit `6eacd0037fcec8b09443baf340551d47be013767`).
+Release `v2-sft1200-25.12` (commit `8897a0ce95141ccc1b9d1187c80af889bb784986`).
 Both images are also attached to the release page:
 
-https://codeberg.org/kjansik/openwrt-for-sft1200/releases/tag/v1-sft1200-25.12
+https://codeberg.org/kjansik/openwrt-for-sft1200/releases/tag/v2-sft1200-25.12
 
 - sysupgrade.tar (from a running OpenWrt):
-  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v1-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-sysupgrade.tar
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v2-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-sysupgrade.tar
 - factory.img (U-Boot recovery only):
-  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v1-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-factory.img
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v2-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-factory.img
 - checksums:
-  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v1-sft1200-25.12/images/SHA256SUMS
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v2-sft1200-25.12/images/SHA256SUMS
 
 For a frozen link that never moves even if the tag is ever re-pointed, swap
-`tag/v1-sft1200-25.12` for `commit/6eacd0037fcec8b09443baf340551d47be013767`:
+`tag/v2-sft1200-25.12` for `commit/8897a0ce95141ccc1b9d1187c80af889bb784986`:
 `raw/commit/<sha>/...` returns the same bytes.
 
 Verify before flashing: download the images and `images/SHA256SUMS` from the
@@ -192,6 +192,13 @@ which produces the images and the provenance files together as an artifact.
   lost exchanges, not with a hard link failure.
 - iw dev phyX-staN link reports unreliable RX counters even while traffic
   flows; use /sys/class/net/*/statistics/.
+- iw dev phyX-apN station dump is partly wrong on the AP side too:
+  `tx bitrate` always reads the legacy lowest rate (1.0 MBit/s) because
+  siwifi_dump_station_info() fills txrate from stats.last_tx_rate_config,
+  which the TX completion path never updates, and `tx retries` / `tx failed`
+  are copied from the per-device counters (siwifi_hw->stats), not per station.
+  A client pulling 70 MBit/s shows "tx bitrate: 1.0 MBit/s" there. Judge the
+  link by measured throughput and by the rx side, not by these fields.
 
 ## Flashing
 
