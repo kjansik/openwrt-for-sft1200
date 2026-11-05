@@ -4,32 +4,34 @@
 
 ## Download
 
-Release `v2-sft1200-25.12` (commit `8897a0ce95141ccc1b9d1187c80af889bb784986`).
-Both images are also attached to the release page:
+Release `v3-sft1200-25.12`, built from source commit `51f508c` (the release
+commit only adds the images and this documentation). Both images and the build
+provenance are in `images/` and attached to the release page:
 
-https://codeberg.org/kjansik/openwrt-for-sft1200/releases/tag/v2-sft1200-25.12
+https://codeberg.org/kjansik/openwrt-for-sft1200/releases/tag/v3-sft1200-25.12
 
 - sysupgrade.tar (from a running OpenWrt):
-  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v2-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-sysupgrade.tar
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v3-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-sysupgrade.tar
 - factory.img (U-Boot recovery only):
-  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v2-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-factory.img
-- checksums:
-  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v2-sft1200-25.12/images/SHA256SUMS
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v3-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-factory.img
+- checksums and provenance:
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v3-sft1200-25.12/images/SHA256SUMS
+  (`*.manifest`, `config.buildinfo`, `feeds.buildinfo`, `version.buildinfo`
+  are published next to the images)
 
 For a frozen link that never moves even if the tag is ever re-pointed, swap
-`tag/v2-sft1200-25.12` for `commit/8897a0ce95141ccc1b9d1187c80af889bb784986`:
-`raw/commit/<sha>/...` returns the same bytes.
+`tag/v3-sft1200-25.12` for `commit/<sha>`, using the full SHA that
+`git rev-parse v3-sft1200-25.12` prints: `raw/commit/<sha>/...` returns the
+same bytes.
 
-Verify before flashing: download the images and `images/SHA256SUMS` from the
-same ref, put them in one directory and run `sha256sum -c SHA256SUMS` there.
-That in-repository file (two lines) is the authoritative one.
+v2 shipped neither `luci-base` nor `uhttpd` because the LuCI feed was missing
+from the build tree, although the config asked for it; `travelmate` and `tinc`
+were missing for the same reason. v3 restores all of them.
 
-Do **not** use the `sha256sums` asset attached to the release page yet. It
-lists seven files, and five of them - `*.manifest`, `config.buildinfo`,
-`feeds.buildinfo`, `version.buildinfo`, `profiles.json` - are not published
-anywhere, so `sha256sum -c` reports `WARNING: 5 listed files could not be
-read`. It is a leftover from the build that produced the images; see
-"Provenance for the release" below.
+Verify before flashing: download the two images, the four provenance files and
+`images/SHA256SUMS` from the same ref, put them in one directory and run
+`sha256sum -c SHA256SUMS` there. That in-repository file (six lines) is the
+authoritative one.
 
 Note on URL shapes (Forgejo): `raw/branch/<name>` works only for branches;
 for tags use `raw/tag/<tag>`; for a frozen link use `raw/commit/<sha>`.
@@ -38,22 +40,17 @@ Note on hashes: the `.tar`/`.img` hashes in SHA256SUMS identify the exact build
 tested on hardware. A rebuild from the same source produces different `.tar`/`.img`
 hashes (squashfs timestamps), so compare `*.manifest`, `config.buildinfo`,
 `feeds.buildinfo` and `version.buildinfo` from your own
-`bin/targets/siflower/sf19a2890/` against the build they describe. Those
-provenance files are not published under `images/` yet - only the two images and
-SHA256SUMS are, so today that comparison only works against a build you make
-yourself.
+`bin/targets/siflower/sf19a2890/` against the published ones under `images/`.
 
 ### What the released image says about itself
 
 `/etc/openwrt_release` inside the published rootfs reports
-`DISTRIB_REVISION='r0-8c6241b'` and `DISTRIB_DESCRIPTION='OpenWrt 25.12-SNAPSHOT
-r0-8c6241b'`, while the release tag points at `6eacd00`. The image is newer than
-that string suggests: `/usr/share/hostap/common.uc` inside it is byte-identical
-to this branch (`sha256 1407a8dd…`), so it already carries the fix from
-`953b554`, which is three commits after `8c6241b`. The images were built from a
-work tree that still carried uncommitted fixes, so the generated revision
-lags. This is a good example of why the provenance files matter: without them
-the only trace of the source tree is a string that turns out to be wrong.
+`DISTRIB_REVISION='r0-51f508c'` and `DISTRIB_DESCRIPTION='OpenWrt 25.12-SNAPSHOT
+r0-51f508c'`, and `images/version.buildinfo` records the same revision. The
+images were built from a clean tree at `51f508c`; the release tag points at a
+later commit that only adds the images and documentation, so the generated
+revision lags the tag by design. With the provenance files published next to
+the images, that string is no longer the only trace of the source tree.
 
 OpenWrt 25.12 image for the GL-SFT1200, including the driver and script fixes
 needed to use it as a travel router with a working 5 GHz repeater.
@@ -67,7 +64,7 @@ needed to use it as a travel router with a working 5 GHz repeater.
 - `sync` is the integration and build branch: upstream `main` plus the patches
   listed further down. The consistency workflow runs on pushes to it and this
   is the branch the images are built from.
-- What you download is a tag (`v2-sft1200-25.12`, ...) rendered from `sync`.
+- What you download is a tag (`v3-sft1200-25.12`, ...) rendered from `sync`.
   The links above use `raw/tag/<tag>`, so they keep serving the same bytes no
   matter what happens to any branch.
 
@@ -129,11 +126,12 @@ here at all.
 
 ## Provenance for the release
 
-The release ships the two images but not the build metadata. OpenWrt writes
+The release ships the images together with the build metadata. OpenWrt writes
 *.manifest, config.buildinfo, feeds.buildinfo and version.buildinfo next to
 the images in bin/targets/siflower/sf19a2890/, and those are what make a
 release auditable. They cannot be reconstructed afterwards, so they have to
-come from the build that produced the images:
+come from the build that produced the images. Since v3 they are published in
+images/ alongside the images:
 
     scripts/sft1200-collect-provenance.sh
 
@@ -151,6 +149,7 @@ which produces the images and the provenance files together as an artifact.
 - 2.4 GHz AP, 5 GHz AP
 - 5 GHz repeater: STA uplink + AP on the same radio
 - TUN, WireGuard, OpenVPN, tinc
+- LuCI web interface (uhttpd + luci-base, bootstrap theme)
 
 ## Known limitations
 
