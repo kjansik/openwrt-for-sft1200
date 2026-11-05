@@ -68,6 +68,14 @@ needed to use it as a travel router with a working 5 GHz repeater.
     make -j$(nproc) download
     make -j$(nproc) V=s
 
+The host needs **gawk**, not mawk: include/scan.awk uses the gawk-only
+`asort`, and with mawk the build stops at "function asort never defined"
+before any rule is defined. On this machine the root-free host tools live in
+~/work/.buildhost/root (usable via `source ~/work/.buildhost/env.sh`);
+staging_dir/host/bin/awk symlinks to that gawk, and the binary carries the
+RUNPATH `$ORIGIN/../lib/x86_64-linux-gnu` so it resolves libsigsegv.so.2
+without the environment being set.
+
 Images land in bin/targets/siflower/sf19a2890/.
 
 ## Continuous integration
