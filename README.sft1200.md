@@ -58,6 +58,23 @@ the only trace of the source tree is a string that turns out to be wrong.
 OpenWrt 25.12 image for the GL-SFT1200, including the driver and script fixes
 needed to use it as a travel router with a working 5 GHz repeater.
 
+## Branches
+
+- `main` mirrors upstream (`scada/openwrt-for-sft1200`) and carries no build
+  work. It is the upstream line as it stood at fork time, plus commits that
+  were later rewritten, so it can both lack the patches below and contain an
+  older variant of them. Do not read `main` as "the current tree".
+- `sync` is the integration and build branch: upstream `main` plus the patches
+  listed further down. The consistency workflow runs on pushes to it and this
+  is the branch the images are built from.
+- What you download is a tag (`v2-sft1200-25.12`, ...) rendered from `sync`.
+  The links above use `raw/tag/<tag>`, so they keep serving the same bytes no
+  matter what happens to any branch.
+
+The fork's default branch is still `main`, so the repository front page shows
+an upstream snapshot rather than this work; use the release page or the `sync`
+branch to see the state the images were built from.
+
 ## Build
 
 - Target: siflower / sf19a2890, device glinet_gl-sft1200, kernel 6.12.112
