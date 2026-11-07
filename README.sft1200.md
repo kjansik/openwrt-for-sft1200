@@ -4,29 +4,31 @@
 
 ## Download
 
-Release `v3-sft1200-25.12`, built from source commit `51f508c` (the release
+Release `v4-sft1200-25.12`, built from source commit `0fdfe4f` (the release
 commit only adds the images and this documentation). Both images and the build
 provenance are in `images/`; the release page points at the same tag:
 
-https://codeberg.org/kjansik/openwrt-for-sft1200/releases/tag/v3-sft1200-25.12
+https://codeberg.org/kjansik/openwrt-for-sft1200/releases/tag/v4-sft1200-25.12
 
 - sysupgrade.tar (from a running OpenWrt):
-  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v3-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-sysupgrade.tar
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v4-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-sysupgrade.tar
 - factory.img (U-Boot recovery only):
-  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v3-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-factory.img
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v4-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-factory.img
 - checksums and provenance:
-  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v3-sft1200-25.12/images/SHA256SUMS
+  https://codeberg.org/kjansik/openwrt-for-sft1200/raw/tag/v4-sft1200-25.12/images/SHA256SUMS
   (`*.manifest`, `config.buildinfo`, `feeds.buildinfo`, `version.buildinfo`
   are published next to the images)
 
 For a frozen link that never moves even if the tag is ever re-pointed, swap
-`tag/v3-sft1200-25.12` for `commit/<sha>`, using the full SHA that
-`git rev-parse v3-sft1200-25.12` prints: `raw/commit/<sha>/...` returns the
+`tag/v4-sft1200-25.12` for `commit/<sha>`, using the full SHA that
+`git rev-parse v4-sft1200-25.12` prints: `raw/commit/<sha>/...` returns the
 same bytes.
 
 v2 shipped neither `luci-base` nor `uhttpd` because the LuCI feed was missing
 from the build tree, although the config asked for it; `travelmate` and `tinc`
-were missing for the same reason. v3 restores all of them.
+were missing for the same reason. v3 restores all of them. v4 only changes
+the log level of the two txpower-table fallback lines, which are expected on
+this board: no package or behaviour change.
 
 Verify before flashing: download the two images, the four provenance files and
 `images/SHA256SUMS` from the same ref, put them in one directory and run
@@ -45,9 +47,9 @@ hashes (squashfs timestamps), so compare `*.manifest`, `config.buildinfo`,
 ### What the released image says about itself
 
 `/etc/openwrt_release` inside the published rootfs reports
-`DISTRIB_REVISION='r0-51f508c'` and `DISTRIB_DESCRIPTION='OpenWrt 25.12-SNAPSHOT
-r0-51f508c'`, and `images/version.buildinfo` records the same revision. The
-images were built from a clean tree at `51f508c`; the release tag points at a
+`DISTRIB_REVISION='r0-0fdfe4f'` and `DISTRIB_DESCRIPTION='OpenWrt 25.12-SNAPSHOT
+r0-0fdfe4f'`, and `images/version.buildinfo` records the same revision. The
+images were built from a clean tree at `0fdfe4f`; the release tag points at a
 later commit that only adds the images and documentation, so the generated
 revision lags the tag by design. With the provenance files published next to
 the images, that string is no longer the only trace of the source tree.
@@ -64,7 +66,7 @@ needed to use it as a travel router with a working 5 GHz repeater.
 - `sync` is the integration and build branch: upstream `main` plus the patches
   listed further down. The consistency workflow runs on pushes to it and this
   is the branch the images are built from.
-- What you download is a tag (`v3-sft1200-25.12`, ...) rendered from `sync`.
+- What you download is a tag (`v4-sft1200-25.12`, ...) rendered from `sync`.
   The links above use `raw/tag/<tag>`, so they keep serving the same bytes no
   matter what happens to any branch.
 
