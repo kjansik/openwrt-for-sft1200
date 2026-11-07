@@ -329,7 +329,7 @@ int siwifi_parse_txpower_gain_table_configfile(struct siwifi_hw *siwifi_hw, int 
         sprintf(filename_path, "%s%s", "/lib/firmware/", filename);
   fp = filp_open(filename_path, O_RDONLY , 0);
   if(IS_ERR(fp)) {
-   printk(KERN_CRIT "%s: %s not exsist, use default file.\n", __func__, filename);
+   printk(KERN_INFO "%s: %s not found, using default file.\n", __func__, filename);
    filename = ext_pa ? SIWIFI_HB_TXPOWER_GAIN_EXPA_DEFAULT_TABLE_NAME : SIWIFI_HB_TXPOWER_GAIN_DEFAULT_TABLE_NAME;
    printk("[POWER_TABLE_NAME] %s %d %s\n", __func__, __LINE__, filename);
   }else {
@@ -340,7 +340,7 @@ int siwifi_parse_txpower_gain_table_configfile(struct siwifi_hw *siwifi_hw, int 
         sprintf(filename_path, "%s%s", "/lib/firmware/", filename);
   fp = filp_open(filename_path, O_RDONLY , 0);
   if(IS_ERR(fp)) {
-   printk(KERN_CRIT "%s: %s not exsist, use default file.\n", __func__, filename);
+   printk(KERN_INFO "%s: %s not found, using default file.\n", __func__, filename);
    filename = ext_pa ? SIWIFI_LB_TXPOWER_GAIN_EXPA_DEFAULT_TABLE_NAME : SIWIFI_LB_TXPOWER_GAIN_DEFAULT_TABLE_NAME;
    printk("[POWER_TABLE_NAME] %s %d %s\n", __func__, __LINE__, filename);
   }else {
