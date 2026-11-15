@@ -1,119 +1,65 @@
-![OpenWrt logo](include/logo.png)
+# OpenWrt 25.12 for GL.iNet GL-SFT1200 (Opal) — GitHub mirror
 
-> **This repository is a GL.iNet GL-SFT1200 (Opal) port, not upstream OpenWrt.**
+**Community build. NOT official OpenWrt.**
+
+> **Read-only mirror.** The canonical repository, issue tracker and CI live on
+> Codeberg: <https://codeberg.org/kjansik/openwrt-for-sft1200>. This GitHub
+> repository exists so the build can be found and downloaded from here; see
+> [MIRROR.md](MIRROR.md) for how it is kept in step and where to report bugs.
 >
-> * Device-specific build, download and flashing instructions:
->   **[README.sft1200.md](README.sft1200.md)**
-> * Release: [v4-sft1200-25.12](https://codeberg.org/kjansik/openwrt-for-sft1200/releases/tag/v4-sft1200-25.12)
-> * Target: `siflower/sf19a2890`, device `glinet_gl-sft1200`, config
->   `configs/sft1200-25.12.config`
->
-> Community build. NOT official OpenWrt. The text below is the unmodified
-> upstream OpenWrt README.
+> Only the `github-mirror` branch is maintained here. Upstream `main` and the
+> integration branch `sync` stay on Codeberg. The tags are the same tags, so a
+> tag resolves to the same commit on both hosts.
 
-OpenWrt Project is a Linux operating system targeting embedded devices. Instead
-of trying to create a single, static firmware, OpenWrt provides a fully
-writable filesystem with package management. This frees you from the
-application selection and configuration provided by the vendor and allows you
-to customize the device through the use of packages to suit any application.
-For developers, OpenWrt is the framework to build an application without having
-to build a complete firmware around it; for users this means the ability for
-full customization, to use the device in ways never envisioned.
+## Download — release `v4-sft1200-25.12`
 
-Sunshine!
+Built from source commit `0fdfe4f` (the release commit only adds the images and
+the documentation). Provenance — `*.manifest`, `config.buildinfo`,
+`feeds.buildinfo`, `version.buildinfo`, `SHA256SUMS` — sits next to the images.
 
-## Download
+- sysupgrade.tar (from a running OpenWrt):
+  https://raw.githubusercontent.com/kjansik/openwrt-for-sft1200/v4-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-sysupgrade.tar
+- factory.img (U-Boot recovery only):
+  https://raw.githubusercontent.com/kjansik/openwrt-for-sft1200/v4-sft1200-25.12/images/openwrt-siflower-sf19a2890-glinet_gl-sft1200-squashfs-factory.img
+- checksums:
+  https://raw.githubusercontent.com/kjansik/openwrt-for-sft1200/v4-sft1200-25.12/images/SHA256SUMS
 
-Built firmware images are available for many architectures and come with a
-package selection to be used as WiFi home router. To quickly find a factory
-image usable to migrate from a vendor stock firmware to OpenWrt, try the
-*Firmware Selector*.
+Verify before flashing: download the two images, the four provenance files and
+`SHA256SUMS` from the same ref, put them in one directory and run
+`sha256sum -c SHA256SUMS`.
 
-* [OpenWrt Firmware Selector](https://firmware-selector.openwrt.org/)
+URL shapes differ per host: GitHub serves `raw.githubusercontent.com/<owner>/<repo>/<tag>/<path>`,
+while `raw/tag/...` is the Forgejo shape and does not exist here. For a link that
+never moves, replace the tag with a commit SHA.
 
-If your device is supported, please follow the **Info** link to see install
-instructions or consult the support resources listed below.
+## What this is
 
-## 
+OpenWrt 25.12 for the SFT1200 (target `siflower/sf19a2890`, device
+`glinet_gl-sft1200`, kernel 6.12.112) with the driver and script fixes needed to
+use it as a travel router with a working 5 GHz repeater: 5 GHz AP + STA on one
+radio, LuCI, travelmate, WireGuard, OpenVPN, tinc. Release config:
+`configs/sft1200-25.12.config`.
 
-An advanced user may require additional or specific package. (Toolchain, SDK, ...) For everything else than simple firmware download, try the wiki download page:
+Read [README.sft1200.md](README.sft1200.md) before flashing — it carries the
+known limitations (VHT must stay disabled on both bands, radio1 needs a fixed
+non-DFS channel and `htmode=HT40`, travelmate needs the shipped STA vif removed),
+the flashing procedure, the provenance check and the patch list.
 
-* [OpenWrt Wiki Download](https://openwrt.org/downloads)
+## Flashing
 
-## Development
+- `sysupgrade.tar` — from a running OpenWrt (LuCI → Flash Firmware)
+- `factory.img` — U-Boot recovery only
 
-To build your own firmware you need a GNU/Linux, BSD or macOS system (case
-sensitive filesystem required). Cygwin is unsupported because of the lack of a
-case sensitive file system.
+NEVER flash mtd0–mtd3 (spl / u-boot / u-boot-env / factory): factory holds the
+WiFi calibration and MAC addresses. Back it up first:
 
-### Requirements
+    dd if=/dev/mtd3ro of=/tmp/factory.bin
+    scp root@<ip>:/tmp/factory.bin .
 
-You need the following tools to compile OpenWrt, the package names vary between
-distributions. A complete list with distribution specific packages is found in
-the [Build System Setup](https://openwrt.org/docs/guide-developer/build-system/install-buildsystem)
-documentation.
+Keep GL.iNet U-Boot recovery (192.168.1.1 with reset held) available.
 
-```
-binutils bzip2 diff find flex gawk gcc-6+ getopt grep install libc-dev libz-dev
-make4.1+ perl python3.7+ rsync subversion unzip which
-```
+## Licence
 
-### Quickstart
-
-1. Run `./scripts/feeds update -a` to obtain all the latest package definitions
-   defined in feeds.conf / feeds.conf.default
-
-2. Run `./scripts/feeds install -a` to install symlinks for all obtained
-   packages into package/feeds/
-
-3. Run `make menuconfig` to select your preferred configuration for the
-   toolchain, target system & firmware packages.
-
-4. Run `make` to build your firmware. This will download all sources, build the
-   cross-compile toolchain and then cross-compile the GNU/Linux kernel & all chosen
-   applications for your target system.
-
-### Related Repositories
-
-The main repository uses multiple sub-repositories to manage packages of
-different categories. All packages are installed via the OpenWrt package
-manager called `opkg`. If you're looking to develop the web interface or port
-packages to OpenWrt, please find the fitting repository below.
-
-* [LuCI Web Interface](https://github.com/openwrt/luci): Modern and modular
-  interface to control the device via a web browser.
-
-* [OpenWrt Packages](https://github.com/openwrt/packages): Community repository
-  of ported packages.
-
-* [OpenWrt Routing](https://github.com/openwrt/routing): Packages specifically
-  focused on (mesh) routing.
-
-* [OpenWrt Video](https://github.com/openwrt/video): Packages specifically
-  focused on display servers and clients (Xorg and Wayland).
-
-## Support Information
-
-For a list of supported devices see the [OpenWrt Hardware Database](https://openwrt.org/supported_devices)
-
-### Documentation
-
-* [Quick Start Guide](https://openwrt.org/docs/guide-quick-start/start)
-* [User Guide](https://openwrt.org/docs/guide-user/start)
-* [Developer Documentation](https://openwrt.org/docs/guide-developer/start)
-* [Technical Reference](https://openwrt.org/docs/techref/start)
-
-### Support Community
-
-* [Forum](https://forum.openwrt.org): For usage, projects, discussions and hardware advise.
-* [Support Chat](https://webchat.oftc.net/#openwrt): Channel `#openwrt` on **oftc.net**.
-
-### Developer Community
-
-* [Bug Reports](https://bugs.openwrt.org): Report bugs in OpenWrt
-* [Dev Mailing List](https://lists.openwrt.org/mailman/listinfo/openwrt-devel): Send patches
-* [Dev Chat](https://webchat.oftc.net/#openwrt-devel): Channel `#openwrt-devel` on **oftc.net**.
-
-## License
-
-OpenWrt is licensed under GPL-2.0
+GPL-2.0 — see [COPYING](COPYING). The corresponding source for every released
+image is this repository at the released tag, including
+`configs/sft1200-25.12.config`.
