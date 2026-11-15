@@ -4,7 +4,7 @@
 >
 > * Device-specific build, download and flashing instructions:
 >   **[README.sft1200.md](README.sft1200.md)**
-> * Release: [v1-sft1200-25.12](https://codeberg.org/kjansik/openwrt-for-sft1200/releases/tag/v1-sft1200-25.12)
+> * Release: [v4-sft1200-25.12](https://codeberg.org/kjansik/openwrt-for-sft1200/releases/tag/v4-sft1200-25.12)
 > * Target: `siflower/sf19a2890`, device `glinet_gl-sft1200`, config
 >   `configs/sft1200-25.12.config`
 >
