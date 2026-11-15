@@ -51,5 +51,8 @@ this file pair only — keep the mirror version.
   runs on Codeberg.
 - `README.md` is rewritten for GitHub. The Codeberg front page keeps the
   upstream OpenWrt README under a port banner.
+- `README.sft1200.md` is shared verbatim with Codeberg. Its release links and
+  its note on Forgejo URL shapes (`raw/tag/...`) describe the Codeberg host;
+  on GitHub the download links in `README.md` are the ones that work.
 
 Nothing else is edited on this branch.
