@@ -25,6 +25,18 @@
 
 So the mirror branch carries the port's content plus a trimmed `.github/`.
 
+## Default branch and Actions
+
+`github-mirror` must be the repository's **default branch** (Settings →
+General → Default branch), for two reasons:
+
+- the front page then shows this port rather than an empty `main`;
+- GitHub registers workflows only from the default branch, so with the default
+  left on a non-existent `main` the Actions tab stays empty and the
+  consistency gate never appears. Once the default is switched, the workflow is
+  registered and can be run from the Actions tab (`workflow_dispatch`), or it
+  runs on the next push.
+
 ## Refreshing the mirror
 
     git switch github-mirror
